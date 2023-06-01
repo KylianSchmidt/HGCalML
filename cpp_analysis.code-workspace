@@ -1,0 +1,28 @@
+{
+	"folders": [
+		{
+			"path": "cpp_analysis"
+		},
+		{
+			"path": "HGCalML_data"
+		},
+		{
+			"path": "models"
+		},
+		{
+			"path": "modules"
+		},
+		{
+			"path": "scripts"
+		},
+		{
+			"path": "tests"
+		},
+		{
+			"path": "Train"
+		},
+		{
+			"path": "triton"
+		}
+	]
+}

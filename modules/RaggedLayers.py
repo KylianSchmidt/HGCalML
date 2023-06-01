@@ -247,7 +247,7 @@ ragged_layers['RaggedMixHitAndCondInfo'] = RaggedMixHitAndCondInfo
 
 class RaggedCollapseHitInfo(tf.keras.layers.Layer):
     
-    def __init__(self, operation='mean', **kwargs):
+    def __init__(self, operation='mean', axis = 2,**kwargs):
         '''
         Just a wrapper around tf.reduce_xxx(..., axis=2).
         operation can be either mean, max, sum, or any other callable (tf) function that takes an axis argument.
@@ -272,14 +272,21 @@ class RaggedCollapseHitInfo(tf.keras.layers.Layer):
             self.operation = tf.reduce_sum
         else:
             self.operation = operation
+
+        self.axis = axis
         
     def get_config(self):
-        config = {'operation': self.operation}
+        config = {'operation': self.operation, 'axis': self.axis}
         base_config = super(RaggedCollapseHitInfo, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
     
     def call(self, inputs):
-        return self.operation(inputs, axis=2)
+        if len(inputs) == 2:
+            x, rs = inputs # V x F, rs
+            x = tf.RaggedTensor.from_row_splits(x,rs) # E x V'(var) x F
+        else:
+            x = inputs
+        return self.operation(x, axis = self.axis)
         
 
 ragged_layers['RaggedCollapseHitInfo'] = RaggedCollapseHitInfo

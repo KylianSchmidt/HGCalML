@@ -1,0 +1,14 @@
+(lp0
+VDiphoton5_CommonVertex_1000-2000MeV.djctd
+p1
+a.(lp0
+V/home/kschmidt/DeepJetCore/TrackReco_DeepJetCore/HGCalML/NNTrackReco_RawData/Diphoton5_CommonVertex_1000-2000MeV.root
+p1
+a.cdatastructures.TrainData_TrackReco
+TrainData_TrackReco
+p0
+.(dp0
+.L1L
+.I00
+.(dp0
+.
