@@ -56,13 +56,12 @@ class TrainData_TrackReco(TrainData):
             arr.append(d[keys][..., np.newaxis])
         truth_array = ak.concatenate(arr, axis=-1)
         truth_array = ak.flatten(truth_array, axis=-1)
-        self.nsamples = len(feature_array)
         
-        print("Length of Features with empty Events", self.nsamples)
+        print("Length of Features with empty Events", len(feature_array))
         print("Length of Truths with empty Events", len(truth_array))
 
         # Deletes empty events which can be due to both photons
-        feature_array, truth_array, offsets = self.remove_empty_events(feature_array, truth_array, offsets)
+        feature_array, truth_array = self.remove_empty_events(feature_array, truth_array, offsets)
 
         # Features are a np.array of dtype float32 and are rearranged into the shape
         #   eventNum x hits x properties
@@ -71,12 +70,14 @@ class TrainData_TrackReco(TrainData):
         feature_array = feature_array.astype(dtype='float32', order='C', casting="same_kind")
         truth_array = np.array(ak.to_list(truth_array))
         truth_array = truth_array.astype(dtype='float32', order='C', casting="same_kind")
+        offsets = np.unique(offsets)
 
         print("Feature array without empty Events", np.shape(feature_array))
         print("Truth array without empty Events", np.shape(truth_array))
+        print("Offsets without empty Events", np.shape(offsets))
 
         # Return a list of feature arrays, a list of truth arrays (and optionally a list of weight arrays)
-        return [SimpleArray(feature_array, offsets, name="features0")], [truth_array], []
+        return [SimpleArray(feature_array, offsets, name="Features")], [truth_array], []
 
     # Function which removes empty events by checking for double entries in the cumulative offsets arrays
     # this is useful when layers compute objects like means that are ill-defined when there are empty arrays 
@@ -85,8 +86,7 @@ class TrainData_TrackReco(TrainData):
         for i in range(1, len(offsets_cumulative)) :
             if offsets_cumulative[i-1] != offsets_cumulative[i] :
                 keep_index[i-1] = True
-        offsets_cumulative = offsets_cumulative[:-1][keep_index]
-        return features[keep_index], truth[keep_index], offsets_cumulative
+        return features[keep_index], truth[keep_index]
 
     ## defines how to write out the prediction
     def writeOutPrediction(self, predicted, features, truth, weights, outfilename, inputfile):

@@ -10,8 +10,6 @@ import tensorflow as tf
 # Custom loss function which reduces the dimensionality of the feature array
 # entries into a single number
 def loss_reduceMean(truth, pred):
-    #print(truth.shape)
-    #print(pred.shape)
 
     print("PREDICTION START:")
     tf.print(pred)
@@ -33,12 +31,9 @@ def loss_track_distance(truth, prediction) :
 
     prediction = tf.debugging.check_numerics(prediction, "Prediction has nans or infs")
 
-    # Write loss function here
-    # What is the shape of predicted and truth?
-    # keys = ["mcPx", "mcPy", "mcPz", "decayX", "decayY", "decayZ"]
-    t = truth#[:,:-3][0]
-    print("t ", t)
-    tf.print("t ", t)
+    t = truth
+    print("Truth array in loss function:", t)
+    tf.print("Truth array in loss function (TF):", t)
     p = prediction
     distance = (t-p)**2
     return tf.reduce_mean(distance)

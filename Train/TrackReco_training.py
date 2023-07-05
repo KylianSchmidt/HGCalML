@@ -42,7 +42,7 @@ def pretrain_model(Inputs):
     x = Dense(64, activation='elu')(x)
     x = ScaledGooeyBatchNorm2()(x)
 
-    outputs = Dense(3)(x)
+    outputs = Dense(12)(x)
     
     return Model(inputs=Inputs, outputs=outputs)
 
