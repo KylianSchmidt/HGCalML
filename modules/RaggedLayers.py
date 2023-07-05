@@ -292,6 +292,52 @@ class RaggedCollapseHitInfo(tf.keras.layers.Layer):
 ragged_layers['RaggedCollapseHitInfo'] = RaggedCollapseHitInfo
 
 
+class CollapseRagged(tf.keras.layers.Layer):
+    
+    def __init__(self, operation='mean',**kwargs):
+        '''
+        Just a wrapper around tf.reduce_xxx(..., axis=1).
+        operation can be either mean, max, sum, or any other callable (tf) function that takes an axis argument.
+        
+        Input:
+        - data in [batch, ragged hit, F]
+        
+        Output:
+        - mean or max along hit dimension
+        
+        '''
+        
+        #assert operation == 'mean' or operation == 'max' or operation == 'sum' or callable(operation)
+
+        super(CollapseRagged, self).__init__(**kwargs)
+        
+        if operation == 'mean' or 'reduce_mean' in operation:
+            self.operation = tf.reduce_mean
+        elif operation == 'max' or 'reduce_max' in operation:
+            self.operation = tf.reduce_max
+        elif operation == 'sum' or 'reduce_sum' in operation:
+            self.operation = tf.reduce_sum
+        else:
+            self.operation = None
+
+        self.operation_str = operation
+
+    def get_config(self):
+        config = {'operation': self.operation_str}
+        base_config = super(CollapseRagged, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+    
+    def call(self, inputs):
+        assert len(inputs) == 2
+        x, rs = inputs # V x F, rs
+        xr = tf.RaggedTensor.from_row_splits(x,rs) # E x V'(var) x F
+        out = self.operation(xr, axis = 1)
+        out = tf.where( tf.logical_or( tf.math.is_nan(out), tf.math.is_inf(out)), 0., out  )
+        tf.print('out',out)
+        return tf.reshape(out, [-1, x.shape[1]])
+        
+
+ragged_layers['CollapseRagged'] = CollapseRagged
 
 
 class RaggedPFCMomentum(tf.keras.layers.Layer):
