@@ -5,3 +5,6 @@ docker.sh
 ML4Reco.code-workspace
 
 NNTrackReco_*/
+.ipynb
+.djc*
+.root

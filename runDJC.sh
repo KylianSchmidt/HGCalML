@@ -8,10 +8,9 @@ gpuopt="--nv"
 fi
 
 #this is a singularity problem only fixed recently
-unset LD_LIBRARY_PATH
-unset PYTHONPATH
+# unset LD_LIBRARY_PATH
+# unset PYTHONPATH
 sing=`which singularity`
-unset PATH
-cd
+# unset PATH
 
-$sing run -B /ceph -B /home 
+$sing run $gpuopt -B /home /home/kschmidt/DeepJetCore/TrackReco_DeepJetCore/HGCalML/cvmfs/deepjetcore3_latest.sif
