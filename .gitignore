@@ -4,7 +4,8 @@
 docker.sh
 ML4Reco.code-workspace
 
-NNTrackReco_*/
+NNTrackReco*
+B2luigi_env/
 .ipynb
 .djc*
 .root

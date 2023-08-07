@@ -65,9 +65,10 @@ class TrainData_TrackReco(TrainData):
         feature_array = ak.to_numpy(ak.flatten(feature_array, axis=1))
         feature_array = feature_array.astype(dtype='float32', order='C', casting="same_kind")
 
+        # Add the norm of the momentum three-vector to the truth array
         norm_p1 = np.sqrt(np.sum(truth_array[:,0:3]**2, axis=-1))
         norm_p2 = np.sqrt(np.sum(truth_array[:,7:10]**2, axis=-1))
-        
+
         truth_array = np.insert(truth_array, 3, norm_p1, axis=-1)
         truth_array = np.insert(truth_array, 10, norm_p2, axis=-1)
         truth_array = np.array(ak.to_list(truth_array))
@@ -99,13 +100,13 @@ class TrainData_TrackReco(TrainData):
     def writeOutPrediction(self, predicted, features, truth, weights, outfilename, inputfile):
         """ Defines the way the predicted data is stored to disk. Currently done
         using pickle. 
+        
+        Predicted will be a list of numpy arrays
         """
-        # predicted will be a list of numpy arrays
         data = {"Features" : features,
                 "Truth" : truth,
                 "Predicted" : predicted}
         
-        print(outfilename)
         with open(outfilename, "wb") as file:
             pickle.dump(data, file, pickle.HIGHEST_PROTOCOL)
         

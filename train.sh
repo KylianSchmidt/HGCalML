@@ -1,28 +1,15 @@
 #!/bin/bash
 
-convertion=""
-while getopts ch flag
-do
-    case "${flag}" in
-        c) # Convert the data
-        echo "Converting raw data"
-        rm -rf ./NNTrackReco_PreparedData
-        convertFromSource.py -i ./NNTrackReco_RawData/train_files.txt \
-							 -o ./NNTrackReco_PreparedData \
-							 -c TrainData_TrackReco
-		echo "Conversion successful";;
-        h) # Help
-        echo "train.sh : Train the network"
-        echo "Flag information"
-        echo "-c Convert the raw data from root files to ragged arrays"
-        exit 1;;
-    esac
-done
+nnTrackReco_model_directory="./NNTrackReco/${1}"
+
+echo "Train the NN using the following model:"
+echo $nnTrackReco_model_directory
 
 # Train
 echo "Commencing Training"
-rm -rf ./NNTrackReco_Output
+mkdir $nnTrackReco_model_directory
+rm -rf $nnTrackReco_model_directory/Output
 python3 Train/TrackReco_training.py \
-        ./NNTrackReco_PreparedData/dataCollection.djcdc \
-        ./NNTrackReco_Output \
-        --valdata ./NNTrackReco_PreparedData/dataCollection.djcdc
+        ./NNTrackReco_data/PreparedData/dataCollection.djcdc \
+        $nnTrackReco_model_directory/Output \
+        --valdata ./NNTrackReco_data/PreparedData/dataCollection.djcdc

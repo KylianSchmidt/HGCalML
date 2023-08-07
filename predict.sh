@@ -1,23 +1,17 @@
 #!/bin/bash
 
-convertion=""
-while getopts c flag
-do
-    case "${flag}" in
-        c) # Convert the data
-        echo "Converting raw data"
-        rm -rf ./NNTrackReco_Testing/
-        convertFromSource.py  -i ./NNTrackReco_RawData/test_files.txt \
-                      -o ./NNTrackReco_Testing \
-                      -c TrainData_TrackReco
-		echo "Conversion successful";;
-    esac
-done
+nnTrackReco_model_directory="./NNTrackReco/${1}"
 
+echo "Predict features based on the following model"
+echo $nnTrackReco_model_directory
 
-predict.py  ./NNTrackReco_Output/KERAS_model.h5 \
-            ./NNTrackReco_Output/trainsamples.djcdc \
-            ./NNTrackReco_Testing/Testing.djctd \
-              NNTrackReco_Predicted
+# Predict
+echo "Commencing Prediction"
+
+rm -rf $nnTrackReco_model_directory/Predicted
+predict.py  $nnTrackReco_model_directory/Output/KERAS_model.h5 \
+            $nnTrackReco_model_directory/Output/trainsamples.djcdc \
+            ./NNTrackReco_data/TestingData/Testing.djctd \
+            $nnTrackReco_model_directory/Predicted
 
 

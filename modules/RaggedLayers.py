@@ -304,7 +304,6 @@ class CollapseRagged(tf.keras.layers.Layer):
         
         Output:
         - mean or max along hit dimension
-        
         '''
         
         #assert operation == 'mean' or operation == 'max' or operation == 'sum' or callable(operation)
@@ -333,7 +332,6 @@ class CollapseRagged(tf.keras.layers.Layer):
         xr = tf.RaggedTensor.from_row_splits(x,rs) # E x V'(var) x F
         out = self.operation(xr, axis = 1)
         out = tf.where( tf.logical_or( tf.math.is_nan(out), tf.math.is_inf(out)), 0., out  )
-        tf.print('out',out)
         return tf.reshape(out, [-1, x.shape[1]])
         
 

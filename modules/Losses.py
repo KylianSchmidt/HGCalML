@@ -1,7 +1,3 @@
-
-'''
-We don't use the standard keras loss logic, keep this file empty
-'''
 global_loss_list = {}
 
 import numpy as np
@@ -18,7 +14,6 @@ def loss_reduceMean(truth, pred):
     pred = tf.debugging.check_numerics(pred, "pred has nans or infs")
 
     out = tf.reduce_mean(pred**2)
-    #tf.print(out)
     return out
 
 global_loss_list['loss_reduceMean'] = loss_reduceMean
@@ -30,7 +25,7 @@ def loss_track_distance(truth, prediction) :
     the combined distance.
     \n 
     Truth array has the shape:
-        0   1   2   3   4   5   6   7   8   9   10  11  12  13
+        0   1   2   3   4   5   6   7   8   9   10  11  12  13 \n
         px1 py1 pz1 n1  vx1 vy1 vz1 px2 py2 pz2 n2  vx2 vy2 vz2
     """
 
