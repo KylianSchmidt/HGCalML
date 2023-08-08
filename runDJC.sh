@@ -13,4 +13,4 @@ fi
 sing=`which singularity`
 # unset PATH
 
-$sing run $gpuopt -B /home /home/kschmidt/DeepJetCore/TrackReco_DeepJetCore/HGCalML/cvmfs/deepjetcore3_latest.sif
+$sing run $gpuopt -B /home /cvmfs/unpacked.cern.ch/registry.hub.docker.com/cernml4reco/deepjetcore3:latest

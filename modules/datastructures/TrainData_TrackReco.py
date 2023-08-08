@@ -12,8 +12,6 @@ class TrainData_TrackReco(TrainData):
         TrainData.__init__(self)
         # no class member is mandatory
         self.description = "This Class converts Root files from a Geant4 simulation to Awkward and Numpy arrays"
-        #define any other (configuration) members that seem useful
-        self.someusefulemember = "something you might need later"
         
     def extract_to_array(self, filename, key) :
         """This method extracts the events and hits for a given key in the root tree"""
