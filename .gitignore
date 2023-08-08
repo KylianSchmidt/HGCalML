@@ -9,4 +9,4 @@ cvmfs
 *.djc*
 
 nntr_models/*
-.root
+*.root
