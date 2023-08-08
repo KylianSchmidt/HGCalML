@@ -1,3 +1,6 @@
+**NOTE:** Forked by Kylian Schmidt from the HGCalML project
+
+
 HGCalML
 ===============================================================================
 

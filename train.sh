@@ -10,6 +10,6 @@ echo "Commencing Training"
 mkdir $nnTrackReco_model_directory
 rm -rf $nnTrackReco_model_directory/Output
 python3 Train/TrackReco_training.py \
-        ./NNTrackReco_data/PreparedData/dataCollection.djcdc \
+        ./nntr_data/Prepared/dataCollection.djcdc \
         $nnTrackReco_model_directory/Output \
-        --valdata ./NNTrackReco_data/PreparedData/dataCollection.djcdc
+        --valdata ./nntr_data/Prepared/dataCollection.djcdc

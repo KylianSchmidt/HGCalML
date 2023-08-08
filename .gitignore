@@ -4,9 +4,9 @@
 docker.sh
 ML4Reco.code-workspace
 
-NNTrackReco*
-condor
 cvmfs
 *.ipynb
 *.djc*
-*.root
+
+nntr_models/*
+.root
