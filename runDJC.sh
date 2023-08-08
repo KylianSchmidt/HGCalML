@@ -7,10 +7,6 @@ then
 gpuopt="--nv"
 fi
 
-#this is a singularity problem only fixed recently
-# unset LD_LIBRARY_PATH
-# unset PYTHONPATH
 sing=`which singularity`
-# unset PATH
 
 $sing run $gpuopt -B /home /cvmfs/unpacked.cern.ch/registry.hub.docker.com/cernml4reco/deepjetcore3:latest
