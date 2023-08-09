@@ -11,7 +11,7 @@ from GravNetLayersRagged import CastRowSplits, ScaledGooeyBatchNorm2, RaggedGrav
 import tensorflow as tf
 from DeepJetCore.DJCLayers import ScalarMultiply
 
-def pretrain_model(Inputs):
+def nntr_two_vertex_fitter(Inputs):
     """ Network model for the BeamDumpTrackCalo two photon reconstruction
 
     Notes:
@@ -19,8 +19,9 @@ def pretrain_model(Inputs):
     Specific Model Name: 
     Original model
 
-    v5:
-    Use Concatenate(CollapseRagged('sum'), CollapseRagged('mean'))
+    v6:
+    More Dense layers based on trackml_alpha_training
+    Adjusted some of the learning rates and batch sizes
 
     Parameters
     ----------
@@ -50,6 +51,8 @@ def pretrain_model(Inputs):
             n_propagate = 64,
             feature_activation='elu')([x,rs])
         
+        x = Dense(64, activation='elu')(x)
+        x = ScaledGooeyBatchNorm2()(x)
         x = Dense(64, activation='elu')(x)
         x = ScaledGooeyBatchNorm2()(x)
         x_list.append(x)
@@ -95,7 +98,7 @@ train=training_base()
 from Losses import loss_track_distance
 
 if not train.modelSet():
-    train.setModel(pretrain_model)
+    train.setModel(nntr_two_vertex_fitter)
     
     train.saveCheckPoint("before_training.h5")
     train.setCustomOptimizer(tf.keras.optimizers.Adam())
@@ -106,6 +109,7 @@ if not train.modelSet():
     train.keras_model.summary()
     
 from DeepJetCore.training.DeepJet_callbacks import simpleMetricsCallback
+
 cb = [simpleMetricsCallback(
         output_file=train.outputDir+'/losses.html',
         record_frequency= 10,
@@ -121,6 +125,6 @@ nbatch = 5000
 train.change_learning_rate(1e-3)
 train.trainModel(nepochs=10, batchsize=nbatch, additional_callbacks=cb)
 
-nbatch = 5000
+nbatch = 20000
 train.change_learning_rate(1e-5)
-train.trainModel(nepochs=50, batchsize=nbatch, additional_callbacks=cb)
+train.trainModel(nepochs=100, batchsize=nbatch, additional_callbacks=cb)

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-nnTrackReco_model_directory="./NNTrackReco/${1}"
+nnTrackReco_model_directory="./nntr_models/${1}"
 
 echo "Train the NN using the following model:"
 echo $nnTrackReco_model_directory
