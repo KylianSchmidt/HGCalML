@@ -8,5 +8,5 @@ cvmfs
 *.ipynb
 *.djc*
 
-nntr_models/*
+nntr*
 *.root

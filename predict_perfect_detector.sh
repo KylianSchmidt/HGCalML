@@ -11,7 +11,7 @@ echo "Commencing Prediction"
 rm -rf $nnTrackReco_model_directory/Predicted
 predict.py  $nnTrackReco_model_directory/Output/KERAS_check_best_model.h5 \
             $nnTrackReco_model_directory/Output/trainsamples.djcdc \
-            ./nntr_data/Testing/Testing.djctd \
+            ./nntr_data/PerfectDetectorTesting/Testing.djctd \
             $nnTrackReco_model_directory/Predicted
 
 

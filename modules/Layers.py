@@ -362,12 +362,12 @@ import tensorflow as tf
 
 
 class VectorNorm(Layer):
-    def compute_output_shape(self, input_shape):
-        return input_shape
+    # def compute_output_shape(self, input_shape):
+    #     return input_shape
         
     def call(self, inputs):
         norm = tf.sqrt(tf.reduce_sum(inputs**2, axis=1, keepdims=True))
-        return inputs/(norm+1E-10), norm
+        return norm+tf.fill(dims=tf.shape(norm), value=1E-10)
 
 global_layers_list['VectorNorm']=VectorNorm
 
