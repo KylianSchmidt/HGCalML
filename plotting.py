@@ -8,6 +8,8 @@ import sys
 import os
 from datetime import datetime
 from typing import Type, TypeVar, Literal
+import logging
+logger = logging.getLogger(__name__)
 
 today = datetime.today().strftime("%Y-%m-%d")
 
@@ -49,9 +51,9 @@ class Extract:
         self.model_dir = model_dir+"/"
         self.model_name = model_name
         self.nn_raw_data = {}
+        self.testing_root_files = testing_root_files
         self.predicted = self.nn_data(key="Predicted")
         self.truth = self.nn_data(key="Truth")
-        self.testing_root_files = testing_root_files
         self.hits = []
         self.ATCCellNumCols = np.NaN
         self.ATCCellNumRows = np.NaN
@@ -68,53 +70,55 @@ class Extract:
             self.read_hits()
 
     def undo_normalization(self, array: np.array):
-        """ Only temporary as this will be handled by conversion
-        in DJC
+        """ Undo the normalization from the preprocessing step.
+        The ordering here is the same as in 'normalize_inputs.py' which
+        is different than in the truth array of the network
         """
-        print("Undo normalization, mean was", np.mean(array))
-        with open("nntr_pd_data/4173685_tmp_Testing.pkl", "rb") as file:
+        # Only temporary as this will be handled by conversion
+        # in DJC
+        #
+        # Update: no it wont, blame it on DJC
+        logger.info("Undo normalization, mean was", np.mean(array, axis=0))
+
+        with open(self.testing_root_files.rstrip(".root")+"_normalization.pkl",
+                  "rb") as file:
             data = pickle.load(file)
-            std = data["Std"]
-            mean = data["Mean"]
-            original_array = array*(std + 1E-10) + mean
-            print("Mean is now", np.mean(original_array))
-            return original_array
+            std, mean = np.array([]), np.array([])
+            keys = ["mcPx", "mcPy", "mcPz", "decayX", "decayY", "decayZ"]
+
+            for i in [0, 1]:
+                for key in keys:
+                    mean = np.append(mean, data["mean"][key][i, 0])
+                    std = np.append(std, data["std"][key][i, 0])
+                
+        original_array = array*(std + 1E-10) + mean
+
+        logger.info("Mean is now", np.mean(original_array))
+        return original_array
 
     def nn_data(self, key="Truth"):
-        return self.nn_find_physical_variables(self.nn_read_data()[key])
-
-    def nn_read_data(self):
         if self.model_name not in os.listdir(self.model_dir):
-            print("No such model could be found at:")
-            print(f"{self.model_dir}{self.model_name}")
+            logger.error("No such model could be found at:\n" +
+                         f"{self.model_dir}/{self.model_name}\n" +
+                         "Available models are:", os.listdir(self.model_dir))
         else:
             with open(f"{self.model_dir}/{self.model_name}/"
                       + "Predicted/pred_Testing.djctd", "rb") as file:
                 self.nn_raw_data = pickle.load(file)
-            return self.nn_raw_data
+        
+        return self.nn_find_physical_variables(self.nn_raw_data[key])
 
     def nn_find_physical_variables(self, array: np.array):
-
-        # Temporary until new data un-normalized by DJC
         array = self.undo_normalization(array)
-        # remove this block ^^^ afterwards
 
-        if np.shape(array)[1] == 14:
-            return {
-                "p1": array[:, 0:3],
-                "n1": array[:, 3],
-                "v1": array[:, 4:7],
-                "p2": array[:, 7:10],
-                "n2": array[:, 10],
-                "v2": array[:, 11:14]}
-        elif np.shape(array)[1] == 12:
+        if np.shape(array)[1] == 12:
             return {
                 "p1": array[:, 0:3],
                 "v1": array[:, 3:6],
                 "p2": array[:, 6:9],
                 "v2": array[:, 9:12]}
         else:
-            print("Wrong shape of array, is", np.shape(array))
+            logger.error(f"Wrong shape of array, is {np.shape(array)}")
 
     def read_hits(self):
         filename = self.testing_root_files
@@ -147,120 +151,25 @@ class Plot:
             savefigdir = f"{data.model_dir}/{data.model_name}/Plots/"
         os.makedirs(savefigdir, exist_ok=True)
         plt.savefig(f"{savefigdir}/{plot_type}_{obs}.png", dpi=600)
+    
+    def gaussian_uncertainties(ax: plt.axis,
+                               data: Type[TOutput],
+                               feature,
+                               errors):
+            mean = np.mean(feature, axis=0)
+            colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-    def histogram(data=Type[TOutput],
-                  obs="v1",
-                  xlabel="Distance from detector [mm]",
-                  scalar_factor=1.0,
-                  nbins=np.array([]),
-                  show_uncertainties=True,
-                  savefigdir="",
-                  logscale=True) -> None:
-        """ Plot a pair of histograms comparing the predicted and
-        true distributions of a given quantity from the network
-        output.
-
-        Notes
-        -----
-        If uncertainties are included in 'data', they will be added
-        automatically to the plots as horizontal errorbars.
-
-        Parameters
-        ----------
-
-        data : Type[TOutput]
-            Data extracted from the network using the Extract class
-        obs : str
-            Key in 'data' of the observable to be plotted, can be a
-            single array (e.g. Energy) or a 3-vector (e.g. Momentum)
-        xlabel : str
-            Shared xlabel passed to matplotlib, should include units
-        scalar_factor : float
-            Factor for all quantities to account for unit conversions
-            (e.g. MeV -> Gev)
-        """
-
-        predicted = data.predicted[obs]
-        truth = data.truth[obs]
-        uncertainties = data.uncertainties[obs]
-
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5), sharey=True)
-        fig.suptitle(f"Model {data.model_name}")
-
-        if not nbins.any():
-            xlim = (np.min([predicted, truth])*scalar_factor,
-                    np.max([predicted, truth])*scalar_factor)
-            nbins = np.linspace(xlim[0], xlim[1], 50)
-        else:
-            xlim = nbins[0], nbins[-1]
-        ax1.set_xlim(xlim)
-        ax2.set_xlim(xlim)
-
-        label = obs
-        if len(predicted[0]) == 3:
-            label = [f"{obs}_{i}" for i in ["x", "y", "z"]]
-
-        ax1.hist(predicted*scalar_factor,
-                 bins=nbins,
-                 histtype="step",
-                 alpha=0.9,
-                 label=label)
-
-        def gaussian_uncertainties(ax):
-            mean = np.mean(predicted, axis=0)
-            errors = np.abs(np.mean(uncertainties, axis=0))
-            height = []
-
-            if np.atleast_2d(predicted).shape[0] != 1:
-                prop_cycle = plt.rcParams['axes.prop_cycle']
-                colors = prop_cycle.by_key()['color']
-
-                for i in range(predicted.shape[1]):
-                    h = np.histogram(predicted[..., i], bins=nbins)
-                    height = h[0][h[0].argmax()]
-                    ax.scatter(x=mean[i]*scalar_factor,
-                               y=height,
-                               color=colors[i])
-                    ax.errorbar(x=mean[i]*scalar_factor,
-                                y=height,
-                                xerr=errors[i]*scalar_factor,
-                                label=f"$\\Delta {label[i]}$",
-                                ls="",
-                                color=colors[i])
-
-            else:
-                h = np.histogram(predicted, bins=nbins)
-                height = h[0][h[0].argmax()]
-                ax.scatter(x=mean*scalar_factor,
-                           y=height)
-                ax.errorbar(x=mean*scalar_factor,
-                            y=height,
-                            xerr=errors*scalar_factor,
-                            label="Predicted Error",
-                            ls="")
-
-        if uncertainties.any() and show_uncertainties:
-            gaussian_uncertainties(ax1)
-
-        ax1.set_title('Predicted')
-
-        ax2.hist(truth*scalar_factor,
-                 bins=nbins,
-                 histtype="step",
-                 alpha=0.9,
-                 label=label)
-        ax2.set_title('Truth')
-
-        for ax in (ax1, ax2):
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel('Number of occurences')
-            if logscale:
-                ax.set_yscale('log')
-            ax.legend(loc="upper right")
-
-        plt.tight_layout()
-        Plot.savefig(savefigdir, data, "hist", obs)
-        return None
+            h = np.histogram(feature, bins=nbins)
+            height = h[0][h[0].argmax()]
+            ax.scatter(x=mean*scalar_factor,
+                       y=height,
+                       color=colors[0])
+            ax.errorbar(x=mean*scalar_factor,
+                        y=height,
+                        color=colors[0],
+                        xerr=errors*scalar_factor,
+                        label="Predicted Error",
+                        ls="")
 
     def scatter(data=Type[TOutput],
                 obs="v1",
@@ -320,19 +229,22 @@ class Plot:
         iterables = [["Mean", "Uncertainties"],
                      ["Predicted", "Truth"]]
         obs = predicted.keys()
+
         if mean:
             header = pd.MultiIndex.from_product(iterables=iterables,
                                                 names=["DataType", "Property"])
-            df = pd.DataFrame(index=obs, columns=header)
+            df = pd.DataFrame(columns=header)
             for i, ob in enumerate(obs):
-                df.loc[ob, ("Mean", "Predicted")] = np.mean(predicted[ob],
-                                                            axis=0)
-                df.loc[ob, ("Uncertainties", "Predicted")] = np.mean(
-                                                        uncertainties[ob],
-                                                        axis=0)
-                df.loc[ob, ("Mean", "Truth")] = np.mean(truth[ob], axis=0)
-                df.loc[ob, ("Uncertainties", "Truth")] = np.std(truth[ob],
-                                                                axis=0)
+                for a, axis in enumerate({"x": 0, "y": 1, "z": 2}):
+                    df.loc[ob+axis, ("Mean", "Predicted")] = np.mean(predicted[ob],
+                                                                     axis=0)[a]
+                    df.loc[ob+axis, ("Uncertainties", "Predicted")] = np.mean(
+                                                            uncertainties[ob],
+                                                            axis=0)[a]
+                    df.loc[ob+axis, ("Mean", "Truth")] = np.mean(truth[ob],
+                                                                 axis=0)[a]
+                    df.loc[ob+axis, ("Uncertainties", "Truth")] = np.std(truth[ob],
+                                                                         axis=0)[a]
         else:
             header = pd.MultiIndex.from_product(iterables=[[eventID],
                                                            ["Predicted",
@@ -342,23 +254,25 @@ class Plot:
             for i, ob in enumerate(obs):
                 df.loc[ob, (eventID, "Predicted")] = predicted[eventID, i]
                 df.loc[ob, (eventID, "Truth")] = truth[eventID, i]
+
         return df
 
     def tracks(data=Type[TOutput],
                eventID=0,
                axis="x",
-               savefigdir=""):
+               savefigdir="",
+               scalar_factor=1):
         """ Method which calls the FullTrackReco class and plots the hits as
         well as the true and predicted trajectory of the photons based on the
         output from the network
         """
         if not data.hits:
-            print("Error: Root files have not been extracted " +
-                  "yet. Use Extract.read_hits() or set " +
-                  "'read_hits' to True when using Extract().")
+            logger.error("Error: Root files have not been extracted " +
+                         "yet. Use Extract.read_hits() or set " +
+                         "'read_hits' to True when using Extract().")
 
         ftr = FullTrackReco(data, eventID)
-        ftr.plot_mpl(axis=axis)
+        ftr.plot_mpl(axis=axis, scalar_factor=scalar_factor)
         Plot.savefig(savefigdir, data, "tracks", eventID)
         return None
 
@@ -383,7 +297,7 @@ class FullTrackReco:
         if self.ATLayerNum <= 5:
             self.colors = ["purple", "blue", "darkred", "red", "darkorange"]
         else:
-            self.colors = ["lightblue"]*self.ATLayerNum
+            self.colors = ["lightblue"]*int(self.ATLayerNum)
 
         if self.data.hits:
             hits_event = {}
@@ -400,10 +314,6 @@ class FullTrackReco:
 
     def plot_calo(self):
         """ Heatmap of the Calorimeter energy deposition with tracker hits"""
-        def photon_energy(momentum):
-            assert len(momentum) == 3
-            return np.linalg.norm(momentum)
-
         self.fig = plt.figure(figsize=(6, 5))
         self.ax = self.fig.subplots()
 
@@ -481,7 +391,6 @@ class FullTrackReco:
                           t["v1"][self.eventID]*units), axis=-1)
         true2 = np.stack((t["p2"][self.eventID]*units,
                           t["v2"][self.eventID]*units), axis=-1)
-        print(pred1)
 
         # Predicted
         plot.plot(pred1[2], pred1[ax],
@@ -567,21 +476,22 @@ if __name__ == "__main__":
     model_name = sys.argv[1]
 
     read_hits = False
-    data = Extract(model_dir="./nntr_models",
+    data = Extract(model_dir="./nntr_models/idealized_detector",
                    model_name=model_name,
-                   read_hits=read_hits)
+                   read_hits=read_hits,
+                   testing_root_files="./nntr_data/idealized_detector/Raw/Testing.root")
 
     Plot.histogram(data=data,
                    obs="p1",
-                   xlabel="Normalized Momentum",
-                   scalar_factor=1,
-                   nbins=np.linspace(-5, 5, 100))
+                   xlabel="Normalized Momentum [MeV]",
+                   scalar_factor=1E3,
+                   nbins=np.linspace(-2.5E3, 2.5E3, 100))
 
     Plot.histogram(data=data,
                    obs="v1",
                    xlabel="Vertex Position [mm]",
                    scalar_factor=1E3,
-                   nbins=np.linspace(-2000, 100, 100))
+                   nbins=np.linspace(-1200, 100, 100))
 
     Plot.scatter(data=data,
                  obs="v1",
@@ -597,5 +507,3 @@ if __name__ == "__main__":
                  scalar_factor=1,
                  axis=("z", "x"),
                  units="m")
-
-    #Plot.tracks(data=data, eventID=0)

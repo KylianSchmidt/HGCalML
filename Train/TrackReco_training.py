@@ -5,9 +5,9 @@ Uses the GravNet architecture
 
 import tensorflow as tf
 from DeepJetCore.training.training_base import training_base
-from tensorflow.keras import Model
+from tensorflow.keras import Model, initializers
 from tensorflow.keras.layers import Dense, Concatenate
-from Layers import VectorNorm, RaggedGlobalExchange
+from Layers import RaggedGlobalExchange
 from RaggedLayers import CollapseRagged
 from GravNetLayersRagged import CastRowSplits, ScaledGooeyBatchNorm2, RaggedGravNet
 from Losses import nntr_L2_distance
@@ -25,11 +25,11 @@ def nntr_two_vertex_fitter(Inputs):
 
     Version
     --------
-    1.0.0
+    1.0.2
 
     Date
     ----
-    2023-09-26
+    2023-09-28
 
     Parameters
     ----------
@@ -80,40 +80,46 @@ def nntr_two_vertex_fitter(Inputs):
     x = CollapseRagged('sum')([x, rs])
     x = ScaledGooeyBatchNorm2(**batchnorm_parameters)(x)
 
-    features = Dense(12)(x)
-    sigma = Dense(12,)(x)
+    features = Dense(12, activation="linear")(x)
+    sigma = Dense(12, activation="relu")(x)
   
     outputs = Concatenate(axis=1)([features, sigma])
     return Model(inputs=Inputs, outputs=outputs)
 
 
-# Training 
-train = training_base()
-loss = nntr_L2_distance(train_uncertainties=True,
-                        epsilon=0.001)
+if __name__ == "__main__":
+    train = training_base()
+    loss = nntr_L2_distance(train_uncertainties=True,
+                            epsilon=0.001)
 
-if not train.modelSet():
-    train.setModel(nntr_two_vertex_fitter)
-    train.saveCheckPoint("before_training.h5")
-    train.setCustomOptimizer(tf.keras.optimizers.Adam())
-    train.compileModel(learningrate=1e-3,
-                       loss=loss)
-    train.keras_model.summary()
+    if not train.modelSet():
+        train.setModel(nntr_two_vertex_fitter)
+        train.saveCheckPoint("before_training.h5")
+        train.setCustomOptimizer(tf.keras.optimizers.Adam())
+        train.compileModel(learningrate=1e-3,
+                           loss=loss)
+        train.keras_model.summary()
 
-cb = [simpleMetricsCallback(
-        output_file=train.outputDir+'/losses.html',
-        record_frequency=5,
-        plot_frequency=5,
-        select_metrics='*loss')]
+    cb = [simpleMetricsCallback(
+            output_file=train.outputDir+'/losses.html',
+            record_frequency=5,
+            plot_frequency=5,
+            select_metrics='*loss')]
 
-nbatch = 50000
-train.change_learning_rate(5e-4)
-train.trainModel(nepochs=5, batchsize=nbatch, additional_callbacks=cb)
+    nbatch = 50000
+    train.change_learning_rate(5e-4)
+    train.trainModel(nepochs=5,
+                     batchsize=nbatch,
+                     additional_callbacks=cb)
 
-nbatch = 200000
-train.change_learning_rate(1e-4)
-train.trainModel(nepochs=20, batchsize=nbatch, additional_callbacks=cb)
+    nbatch = 200000
+    train.change_learning_rate(1e-4)
+    train.trainModel(nepochs=20,
+                     batchsize=nbatch,
+                     additional_callbacks=cb)
 
-nbatch = 200000
-train.change_learning_rate(1e-5)
-train.trainModel(nepochs=70, batchsize=nbatch, additional_callbacks=cb)
+    nbatch = 200000
+    train.change_learning_rate(1e-5)
+    train.trainModel(nepochs=30,
+                     batchsize=nbatch,
+                     additional_callbacks=cb)

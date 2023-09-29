@@ -22,7 +22,7 @@ def loss_reduceMean(truth, pred):
 global_loss_list['loss_reduceMean'] = loss_reduceMean
 
 
-def simple_L2(truth, prediction) :
+def simple_L2(truth, prediction):
     """ Loss function for the reconstruction of two photons. Compares the
     accuracy of the reconstructed track with both real tracks and minimizes
     the combined distance.
@@ -53,15 +53,15 @@ def simple_L2(truth, prediction) :
     
     # Loss function
     distance1 = tf.reduce_mean((pred1-truth)**2,
-                            axis=1,
-                            keepdims=True)
+                               axis=1,
+                               keepdims=True)
     distance2 = tf.reduce_mean((pred2-truth)**2,
-                            axis=1,
-                            keepdims=True)
+                               axis=1,
+                               keepdims=True)
     # Loss = E x min([d1, d2]) = E x 1
     loss_per_event = tf.reduce_min(tf.concat([distance1, distance2],
-                                            axis=1),
-                                axis=1)
+                                             axis=1),
+                                   axis=1)
     # res = min(E x 1) = 1
     res = tf.reduce_mean(loss_per_event)
 
