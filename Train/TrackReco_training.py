@@ -82,7 +82,7 @@ def nntr_two_vertex_fitter(Inputs):
     x = ScaledGooeyBatchNorm2(**batchnorm_parameters)(x)
 
     features = Dense(12, activation="linear")(x)
-    sigma = Dense(12, activation="relu")(x)
+    sigma = Dense(12, activation="exp")(x)
 
     outputs = Concatenate(axis=1)([features, sigma])
     return Model(inputs=Inputs, outputs=outputs)
