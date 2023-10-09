@@ -147,7 +147,7 @@ class TrainData_TrackReco(TrainData):
         done using pickle.
 
         Predicted will be a list of numpy arrays
-        """ 
+        """
 
         data = {"Hits": features,
                 "Truth": truth[0],

@@ -5,11 +5,12 @@ Uses the GravNet architecture
 
 import tensorflow as tf
 from DeepJetCore.training.training_base import training_base
-from tensorflow.keras import Model, initializers
+from tensorflow.keras import Model
 from tensorflow.keras.layers import Dense, Concatenate
 from Layers import RaggedGlobalExchange
 from RaggedLayers import CollapseRagged
-from GravNetLayersRagged import CastRowSplits, ScaledGooeyBatchNorm2, RaggedGravNet
+from GravNetLayersRagged import (CastRowSplits, ScaledGooeyBatchNorm2,
+                                 RaggedGravNet)
 from Losses import nntr_L2_distance
 from DeepJetCore.training.DeepJet_callbacks import simpleMetricsCallback
 
@@ -38,7 +39,7 @@ def nntr_two_vertex_fitter(Inputs):
             [eventNum x hits] x properties 
         where "eventNum x hits" are separated by TensorFlow using the rowsplits
         rs.
-    
+
     Returns
     -------
     Model(Inputs, Outputs)
@@ -50,7 +51,7 @@ def nntr_two_vertex_fitter(Inputs):
     batchnorm_parameters = {
         "fluidity_decay": 0.1,
         "max_viscosity": 0.9999}
-    
+
     x, rs = Inputs
     rs = CastRowSplits()(rs)
 
@@ -70,7 +71,7 @@ def nntr_two_vertex_fitter(Inputs):
             n_filters=64,
             n_propagate=64,
             feature_activation='elu')([x, rs])
-   
+
         x = ScaledGooeyBatchNorm2(**batchnorm_parameters)(x)
         x_list.append(x)
 
@@ -82,14 +83,14 @@ def nntr_two_vertex_fitter(Inputs):
 
     features = Dense(12, activation="linear")(x)
     sigma = Dense(12, activation="relu")(x)
-  
+
     outputs = Concatenate(axis=1)([features, sigma])
     return Model(inputs=Inputs, outputs=outputs)
 
 
 if __name__ == "__main__":
     train = training_base()
-    loss = nntr_L2_distance(train_uncertainties=True,
+    loss = nntr_L2_distance(train_uncertainties=False,
                             epsilon=0.001)
 
     if not train.modelSet():

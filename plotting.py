@@ -62,14 +62,14 @@ class Extract:
         self.ATCellSideLength = np.NaN
 
         if "Uncertainties" in self.nn_raw_data.keys():
-            self.uncertainties = self.nn_data(key="Uncertainties")
+            self.uncertainties = self._nn_data(key="Uncertainties")
         else:
             self.uncertainties = []
 
         if read_hits:
-            self.read_hits()
+            self._read_hits()
 
-    def undo_normalization(self, array: np.array):
+    def _undo_normalization(self, array: np.array):
         """ Undo the normalization from the preprocessing step.
         The ordering here is the same as in 'normalize_inputs.py' which
         is different than in the truth array of the network
@@ -90,13 +90,13 @@ class Extract:
                 for key in keys:
                     mean = np.append(mean, data["mean"][key][i, 0])
                     std = np.append(std, data["std"][key][i, 0])
-                
+
         original_array = array*(std + 1E-10) + mean
 
         logger.info("Mean is now", np.mean(original_array))
         return original_array
 
-    def nn_data(self, key="Truth"):
+    def _nn_data(self, key="Truth"):
         if self.model_name not in os.listdir(self.model_dir):
             logger.error("No such model could be found at:\n" +
                          f"{self.model_dir}/{self.model_name}\n" +
@@ -105,10 +105,10 @@ class Extract:
             with open(f"{self.model_dir}/{self.model_name}/"
                       + "Predicted/pred_Testing.djctd", "rb") as file:
                 self.nn_raw_data = pickle.load(file)
-        
-        return self.nn_find_physical_variables(self.nn_raw_data[key])
 
-    def nn_find_physical_variables(self, array: np.array):
+        return self._nn_find_physical_variables(self.nn_raw_data[key])
+
+    def _nn_find_physical_variables(self, array: np.array):
         array = self.undo_normalization(array)
 
         if np.shape(array)[1] == 12:
@@ -156,20 +156,20 @@ class Plot:
                                data: Type[TOutput],
                                feature,
                                errors):
-            mean = np.mean(feature, axis=0)
-            colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        mean = np.mean(feature, axis=0)
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-            h = np.histogram(feature, bins=nbins)
-            height = h[0][h[0].argmax()]
-            ax.scatter(x=mean*scalar_factor,
-                       y=height,
-                       color=colors[0])
-            ax.errorbar(x=mean*scalar_factor,
-                        y=height,
-                        color=colors[0],
-                        xerr=errors*scalar_factor,
-                        label="Predicted Error",
-                        ls="")
+        h = np.histogram(feature, bins=nbins)
+        height = h[0][h[0].argmax()]
+        ax.scatter(x=mean*scalar_factor,
+                    y=height,
+                    color=colors[0])
+        ax.errorbar(x=mean*scalar_factor,
+                    y=height,
+                    color=colors[0],
+                    xerr=errors*scalar_factor,
+                    label="Predicted Error",
+                    ls="")
 
     def scatter(data=Type[TOutput],
                 obs="v1",
@@ -234,23 +234,20 @@ class Plot:
             header = pd.MultiIndex.from_product(iterables=iterables,
                                                 names=["DataType", "Property"])
             df = pd.DataFrame(columns=header)
+            
             for i, ob in enumerate(obs):
                 for a, axis in enumerate({"x": 0, "y": 1, "z": 2}):
-                    df.loc[ob+axis, ("Mean", "Predicted")] = np.mean(predicted[ob],
-                                                                     axis=0)[a]
-                    df.loc[ob+axis, ("Uncertainties", "Predicted")] = np.mean(
-                                                            uncertainties[ob],
-                                                            axis=0)[a]
-                    df.loc[ob+axis, ("Mean", "Truth")] = np.mean(truth[ob],
-                                                                 axis=0)[a]
-                    df.loc[ob+axis, ("Uncertainties", "Truth")] = np.std(truth[ob],
-                                                                         axis=0)[a]
+                    df.loc[ob+axis, ("Mean", "Predicted")] = np.mean(predicted[ob], axis=0)[a]
+                    df.loc[ob+axis, ("Uncertainties", "Predicted")] = np.mean(uncertainties[ob], axis=0)[a]
+                    df.loc[ob+axis, ("Mean", "Truth")] = np.mean(truth[ob], axis=0)[a]
+                    df.loc[ob+axis, ("Uncertainties", "Truth")] = np.std(truth[ob], axis=0)[a]
         else:
             header = pd.MultiIndex.from_product(iterables=[[eventID],
                                                            ["Predicted",
                                                             "Truth"]],
                                                 names=["EventID", "Property"])
             df = pd.DataFrame(index=obs, columns=header)
+
             for i, ob in enumerate(obs):
                 df.loc[ob, (eventID, "Predicted")] = predicted[eventID, i]
                 df.loc[ob, (eventID, "Truth")] = truth[eventID, i]
@@ -260,8 +257,7 @@ class Plot:
     def tracks(data=Type[TOutput],
                eventID=0,
                axis="x",
-               savefigdir="",
-               scalar_factor=1):
+               savefigdir=""):
         """ Method which calls the FullTrackReco class and plots the hits as
         well as the true and predicted trajectory of the photons based on the
         output from the network
@@ -272,9 +268,8 @@ class Plot:
                          "'read_hits' to True when using Extract().")
 
         ftr = FullTrackReco(data, eventID)
-        ftr.plot_mpl(axis=axis, scalar_factor=scalar_factor)
-        Plot.savefig(savefigdir, data, "tracks", eventID)
-        return None
+        plot = ftr.plot_mpl(axis=axis)
+        return plot
 
 
 class FullTrackReco:
@@ -297,7 +292,7 @@ class FullTrackReco:
         if self.ATLayerNum <= 5:
             self.colors = ["purple", "blue", "darkred", "red", "darkorange"]
         else:
-            self.colors = ["lightblue"]*int(self.ATLayerNum)
+            self.colors = ["darkblue"]*int(self.ATLayerNum)
 
         if self.data.hits:
             hits_event = {}
@@ -371,10 +366,7 @@ class FullTrackReco:
         plt.tick_params(direction="in")
 
     def plot_mpl(self,
-                 axis: Literal["x", "y"] = "x",
-                 scalar_factor=1,
-                 xlim=(),
-                 ylim=()):
+                 axis: Literal["x", "y"] = "x"):
 
         fig, plot = plt.subplots(figsize=(6, 6))
         ax = {"x": 0, "y": 1}[axis]
@@ -382,32 +374,40 @@ class FullTrackReco:
         # Trajectories
         p = self.data.predicted
         t = self.data.truth
-        units = scalar_factor
-        pred1 = np.stack((p["p1"][self.eventID]*units,
-                          p["v1"][self.eventID]*units), axis=-1)
-        pred2 = np.stack((p["p2"][self.eventID]*units,
-                          p["v2"][self.eventID]*units), axis=-1)
-        true1 = np.stack((t["p1"][self.eventID]*units,
-                          t["v1"][self.eventID]*units), axis=-1)
-        true2 = np.stack((t["p2"][self.eventID]*units,
-                          t["v2"][self.eventID]*units), axis=-1)
+        scalar_factor = 1E3
 
         # Predicted
-        plot.plot(pred1[2], pred1[ax],
-                  label='Reconstructed photon 1',
-                  color="lightgreen")
-        plot.plot(pred2[2], pred2[ax],
-                  label='Reconstructed photon 2',
-                  color="green")
+        p1 = p["p1"][self.eventID]*scalar_factor
+        v1 = p["v1"][self.eventID]*scalar_factor
+        plot.plot([v1[2], p1[2]],
+                  p1[ax]/p1[2]*([v1[2], p1[2]] - v1[2]),
+                  color="green",
+                  label="Reconstr. photon 1")
+
+        p2 = p["p2"][self.eventID]*scalar_factor
+        v2 = p["v2"][self.eventID]*scalar_factor
+        plot.plot([v2[2], p2[2]],
+                  p2[ax]/p2[2]*([v2[2], p2[2]] - v2[2]),
+                  color="lightgreen",
+                  label="Reconstr. photon 2")
 
         # Truth
-        plot.plot(true1[2], true1[ax],
-                  color="black",
-                  alpha=0.8)
-        plot.plot(true2[2], true2[ax],
-                  label="True photons",
-                  color="black",
-                  alpha=0.8)
+        p1 = t["p1"][self.eventID]*scalar_factor
+        v1 = t["v1"][self.eventID]*scalar_factor
+        plot.plot([v1[2], p1[2]], 
+                  p1[ax]/p1[2]*([v1[2], p1[2]] - v1[2]),
+                  color="k",
+                  linestyle="dashed",
+                  alpha=0.5)
+
+        p2 = t["p2"][self.eventID]*scalar_factor
+        v2 = t["v2"][self.eventID]*scalar_factor
+        plot.plot([v2[2], p2[2]], 
+                  p2[ax]/p2[2]*([v2[2], p2[2]] - v2[2]),
+                  color="k",
+                  label="True trajectory",
+                  linestyle="dashed",
+                  alpha=0.5)
 
         # Tracker
         for layerID in range(0, self.ATLayerNum):
@@ -428,17 +428,18 @@ class FullTrackReco:
                             ymin=-self.ATCellSideLength*self.ATCCellNumRows/2,
                             ymax=self.ATCellSideLength*self.ATCCellNumCols/2,
                             color=self.colors[layerID],
-                            alpha=0.2)
+                            alpha=0.1)
             else:
                 pass
 
         # Calorimeter
         self.calo = self.df[self.df["layerType"] == 2]
         if not self.calo["z"].empty:
+            print(self.calo)
             plot.vlines(x=self.calo["z"],
                         ymin=self.calo[axis]-self.ATCellSideLength,
                         ymax=self.calo[axis]+self.ATCellSideLength,
-                        alpha=self.calo["E"]/np.max(self.calo["E"])*0.7,
+                        alpha=0.7,
                         colors="k")
             self.calo_center = self.calo["z"].iloc[0]
         else:
@@ -452,24 +453,7 @@ class FullTrackReco:
                           color="grey",
                           alpha=0.1)
         plot.add_patch(detector)
-
-        # Plotting parameters
-        if not xlim:
-            plot.set_xlim(-10 + t["v1"][self.eventID][2]*1E3,
-                          self.calo_center + self.CalorimeterThickness/2+10)
-        else:
-            plot.set_xlim(xlim)
-
-        if not ylim:
-            plot.set_ylim(-self.ATCellSideLength*self.ATCCellNumCols,
-                          self.ATCellSideLength*self.ATCCellNumRows)
-        else:
-            plot.set_ylim(ylim)
-
-        plot.set_ylabel(axis + " [mm]")
-        plot.set_xlabel("z [mm]")
-        plot.legend(loc=(1.05, 0.55))
-        return None
+        return fig, plot
 
 
 if __name__ == "__main__":
