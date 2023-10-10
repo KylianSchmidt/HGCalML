@@ -43,7 +43,7 @@ class nntr_L2_distance(keras.losses.Loss):
              prediction) -> Any:
         """ Call method can only accept two *args (truth, prediction)
         """
-        self.pred1, self.pred2, self.sigma = self.prepare_inputs(prediction)
+        self.pred1, self.pred2, self.ln_sigma = self.prepare_inputs(prediction)
         self.truth = truth
 
         return self.with_uncertainties()
@@ -74,9 +74,8 @@ class nntr_L2_distance(keras.losses.Loss):
                            p[:, 0:3],       # p1
                            p[:, 3:6]]],     # v1
                           axis=1)
-        sigma = p[:, 12:24]
-
-        return pred1, pred2, sigma
+        ln_sigma = p[:, 12:24]
+        return pred1, pred2, ln_sigma
 
     def with_uncertainties(self):
         r""" Allows the network to estimate the uncertainty on the L2 distance
@@ -84,22 +83,24 @@ class nntr_L2_distance(keras.losses.Loss):
 
         Latex formula:
         \mathcal{L} = \left( \frac{\Vec{t} - \Vec{p}}{\Vec{\sigma}} \right)^2 + \ln{(\Vec{\sigma}^2)}
+
+        For practical reasons, exp(sigma) is used to avoid divergences.
         """
 
         # Turn off uncertainties in the loss by omitting it from d1 and d2
         # and training it to zero in 'loss_per_event'
         if self.train_uncertainties:
             sigma_zero = 0.0
-            sigma = self.sigma
+            sigma = self.ln_sigma
         else:
-            sigma_zero = self.sigma
+            sigma_zero = self.ln_sigma
             sigma = 0.0
 
         # Loss function
-        distance1 = tf.reduce_mean(((self.pred1 - self.truth)/sigma)**2 + tf.math.log(sigma)**2,
+        distance1 = tf.reduce_mean(((self.pred1 - self.truth)/(tf.exp(sigma)+self.eps))**2 + sigma**2,
                                    axis=1,
                                    keepdims=True)
-        distance2 = tf.reduce_mean(((self.pred2 - self.truth)/sigma)**2 + tf.math.log(sigma)**2,
+        distance2 = tf.reduce_mean(((self.pred2 - self.truth)/(tf.exp(sigma)+self.eps))**2 + sigma**2,
                                    axis=1,
                                    keepdims=True)
         # Loss = E x min([d1, d2]) = E x 1

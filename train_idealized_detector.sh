@@ -13,6 +13,7 @@ python3 Train/TrackReco_training.py \
         ./nntr_data/idealized_detector/Training/dataCollection.djcdc \
         $nnTrackReco_model_directory/Output \
         --valdata ./nntr_data/idealized_detector/Training/dataCollection.djcdc \
+        --train_uncertainties \
         #--takeweights nntr_models/idealized_detector/v_1-0-3/Output/KERAS_check_best_model.h5
         
 # Predict

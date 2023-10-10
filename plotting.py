@@ -74,7 +74,7 @@ class Extract:
         The ordering here is the same as in 'normalize_inputs.py' which
         is different than in the truth array of the network
         """
-        # Only temporary as this will be handled by conversion
+        # NOTE: Only temporary as this will be handled by conversion
         # in DJC
         #
         # Update: no it wont, blame it on DJC

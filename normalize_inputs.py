@@ -12,11 +12,11 @@ class NormalizeInputs:
         self.keys = ["mcPx", "mcPy", "mcPz", "decayX", "decayY", "decayZ"]
 
         print("Normalizing inputs for file: ", filename)
-        self.find_truth(self.filename)
+        self._find_truth(self.filename)
 
-    def find_truth(self, filename: str) -> np.ndarray:
+    def _find_truth(self, filename: str) -> np.ndarray:
         truth, mean, std = {}, [], []
-        
+
         # NOTE The ordering here is different than in the truth array of the
         # network. Take this into consideration when undoing the normalization
         with uproot.open(filename) as data:

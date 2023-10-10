@@ -9,10 +9,10 @@ from tensorflow.keras import Model
 from tensorflow.keras.layers import Dense, Concatenate
 from Layers import RaggedGlobalExchange
 from RaggedLayers import CollapseRagged
-from GravNetLayersRagged import (CastRowSplits, ScaledGooeyBatchNorm2,
-                                 RaggedGravNet)
+from GravNetLayersRagged import (CastRowSplits, ScaledGooeyBatchNorm2, RaggedGravNet)
 from Losses import nntr_L2_distance
 from DeepJetCore.training.DeepJet_callbacks import simpleMetricsCallback
+from argparse import ArgumentParser
 
 
 def nntr_two_vertex_fitter(Inputs):
@@ -26,11 +26,11 @@ def nntr_two_vertex_fitter(Inputs):
 
     Version
     --------
-    1.0.2
+    1.1.0
 
     Date
     ----
-    2023-09-28
+    2023-10-08
 
     Parameters
     ----------
@@ -82,17 +82,17 @@ def nntr_two_vertex_fitter(Inputs):
     x = ScaledGooeyBatchNorm2(**batchnorm_parameters)(x)
 
     features = Dense(12, activation="linear")(x)
-    sigma = Dense(12, activation="exp")(x)
+    sigma = Dense(12, activation="relu")(x)
 
     outputs = Concatenate(axis=1)([features, sigma])
     return Model(inputs=Inputs, outputs=outputs)
 
 
-if __name__ == "__main__":
-    train = training_base()
-    loss = nntr_L2_distance(train_uncertainties=False,
-                            epsilon=0.001)
-
+def nntr_pretraining(train: training_base,
+                     loss) -> simpleMetricsCallback:
+    """ Set the model, optimizer and loss function for the training
+    Also return metrics callbacks.
+    """
     if not train.modelSet():
         train.setModel(nntr_two_vertex_fitter)
         train.saveCheckPoint("before_training.h5")
@@ -107,6 +107,27 @@ if __name__ == "__main__":
             plot_frequency=5,
             select_metrics='*loss')]
 
+    return cb
+
+
+if __name__ == "__main__":
+    """ Train the NNTR model from the Command Line
+    """
+    # Parser
+    parser = ArgumentParser("Train NNTR model")
+    parser.add_argument("--train_uncertainties",
+                        default=False,
+                        action="store_true",
+                        help="toggle uncertainty training")
+    parser.parse_known_args()
+
+    # Model initialization
+    train = training_base(parser=parser)
+    loss = nntr_L2_distance(train_uncertainties=False,
+                            epsilon=0.001)
+    cb = nntr_pretraining(train, loss)
+
+    # Training
     nbatch = 50000
     train.change_learning_rate(5e-4)
     train.trainModel(nepochs=5,

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script wrapping convertFromSource but normalizes the input data for better
+# Script wrapping convertFromSource which normalizes the input data for better
 # performance. The normalization is kept in the same directory as the original
 
 python3 normalize_inputs.py ./nntr_data/idealized_detector/Raw/Testing.root
