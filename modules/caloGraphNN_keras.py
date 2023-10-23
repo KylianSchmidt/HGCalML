@@ -1,6 +1,5 @@
 
-print(">>>> WARNING: THE MODULE", __name__ ,"IS MARKED FOR REMOVAL")
-raise ImportError("MODULE",__name__,"will be removed")
+
 
 import tensorflow as tf
 import keras
@@ -208,8 +207,6 @@ class GravNet(keras.layers.Layer):
             return dict(list(base_config.items()) + list(config.items()))
 
 
-
-
 class GarNet(keras.layers.Layer):
     def __init__(self, n_aggregators, n_filters, n_propagate, name,  **kwargs):
         super(GarNet, self).__init__(**kwargs)
@@ -230,7 +227,12 @@ class GarNet(keras.layers.Layer):
         self.aggregator_distance.build(input_shape)
         
         # tf.ragged FIXME? tf.shape()?
-        self.output_feature_transform.build((input_shape[0], input_shape[1], input_shape[2] + self.aggregator_distance.units + 2 * self.aggregator_distance.units * (self.input_feature_transform.units + self.aggregator_distance.units)))
+        self.output_feature_transform.build((
+            input_shape[0],
+            input_shape[1],
+            input_shape[2] + self.aggregator_distance.units + 2*self.aggregator_distance.units
+            * (self.input_feature_transform.units + self.aggregator_distance.units)
+        ))
 
         for layer in self._sublayers:
             self._trainable_weights.extend(layer.trainable_weights)
@@ -244,12 +246,19 @@ class GarNet(keras.layers.Layer):
 
         edge_weights = gauss(distance)
 
-        features = tf.concat([features, edge_weights], axis=-1) # (B, V, F+S)
+        features_with_edge_weights = tf.concat([features, edge_weights], axis=-1) # (B, V, F+S)
 
         # vertices -> aggregators
         edge_weights_trans = tf.transpose(edge_weights, perm=(0, 2, 1)) # (B, S, V)
-        aggregated_max = self.apply_edge_weights(features, edge_weights_trans, aggregation=tf.reduce_max) # (B, S, F+S)
-        aggregated_mean = self.apply_edge_weights(features, edge_weights_trans, aggregation=tf.reduce_mean) # (B, S, F+S)
+        aggregated_max = self.apply_edge_weights(
+            features_with_edge_weights,
+            edge_weights_trans,
+            aggregation=tf.reduce_max) # (B, S, F+S)
+        
+        aggregated_mean = self.apply_edge_weights(
+            features_with_edge_weights,
+            edge_weights_trans,
+            aggregation=tf.reduce_mean) # (B, S, F+S)
 
         aggregated = tf.concat([aggregated_max, aggregated_mean], axis=-1) # (B, S, 2*(F+S))
 
@@ -280,9 +289,12 @@ class GarNet(keras.layers.Layer):
         return tf.reshape(out, [-1, out.shape[1].value, n]) # (B, u, n)
     
     def get_config(self):
-            config = {'n_aggregators': self.n_aggregators, 'n_filters': self.n_filters, 'n_propagate': self.n_propagate, 'name': self.name}
-            base_config = super(GarNet, self).get_config()
-            return dict(list(base_config.items()) + list(config.items()))
+        config = {'n_aggregators': self.n_aggregators,
+                  'n_filters': self.n_filters,
+                  'n_propagate': self.n_propagate,
+                  'name': self.name}
+        base_config = super(GarNet, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
     
     
     # tf.ragged FIXME? the last one should be no problem

@@ -3149,13 +3149,17 @@ class RaggedGravNet(LayerWithMetrics):
         self.n_prop_total = 2 * self.n_propagate
 
         with tf.name_scope(self.name + "/1/"):
-            self.input_feature_transform = tf.keras.layers.Dense(n_propagate, activation=feature_activation)
+            self.input_feature_transform = tf.keras.layers.Dense(
+                n_propagate,
+                activation=feature_activation)
 
         with tf.name_scope(self.name + "/2/"):
-            self.input_spatial_transform = tf.keras.layers.Dense(n_dimensions,
-                                                                 #very slow turn on
-                                                                 kernel_initializer=EyeInitializer(mean=0, stddev=coord_initialiser_noise),
-                                                                 use_bias=False)
+            self.input_spatial_transform = tf.keras.layers.Dense(
+                n_dimensions, 
+                kernel_initializer=EyeInitializer( # very slow turn on
+                    mean=0,
+                    stddev=coord_initialiser_noise),
+                use_bias=False)
 
         with tf.name_scope(self.name + "/3/"):
             self.output_feature_transform = tf.keras.layers.Dense(self.n_filters, activation='relu')#changed to relu

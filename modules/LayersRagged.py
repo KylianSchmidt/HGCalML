@@ -162,12 +162,9 @@ class GridMaxPoolReduction(keras.layers.Layer):
         return tf.reshape(back_sorted_max_feat, tf.shape(feat))
         
 
-
-
-
 class RaggedGlobalExchange(keras.layers.Layer):
-    def __init__(self, 
-                 skip_min = False,
+    def __init__(self,
+                 skip_min=False,
                  **kwargs):
         '''
         Inputs:
@@ -180,12 +177,12 @@ class RaggedGlobalExchange(keras.layers.Layer):
         '''
         super(RaggedGlobalExchange, self).__init__(**kwargs)
         self.num_features = -1
-        self.skip_min  = skip_min
+        self.skip_min = skip_min
 
     def get_config(self):
-            config = {'skip_min': self.skip_min}
-            base_config = super(RaggedGlobalExchange, self).get_config()
-            return dict(list(base_config.items()) + list(config.items()))
+        config = {'skip_min': self.skip_min}
+        base_config = super(RaggedGlobalExchange, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
         
     def build(self, input_shape):
         data_shape = input_shape[0]
@@ -193,7 +190,6 @@ class RaggedGlobalExchange(keras.layers.Layer):
         self.num_features = data_shape[1]
         super(RaggedGlobalExchange, self).build(input_shape)
 
-    
     def call(self, x):
         x_data, x_row_splits = x[0], x[1]
         rt = tf.RaggedTensor.from_row_splits(values=x_data, row_splits=x_row_splits)  # [B, {V}, F]

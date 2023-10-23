@@ -602,10 +602,53 @@ class RunningFullValidation(tf.keras.callbacks.Callback):
             plotter.process()
 
         print('finished full validation callback, proceeding with training.')
-        
-        
-        
-        
-        
-        
-        
+
+
+class NanSweeper(tf.keras.callbacks.Callback):
+    '''
+    Slight extension of the normal checkpoint to multiple checkpoints per epoch
+    '''
+    def __init__(self):
+        super().__init__()
+        self.saved_weights = None
+
+    def on_batch_end(self,
+                     batch,
+                     logs={}):
+        mw = self.model.get_weights()
+
+        if self.saved_weights is None:
+            self.saved_weights = []
+            for w in mw:
+                w = tf.where(
+                    tf.math.is_finite(w),
+                    w,
+                    tf.random.normal(w.shape, stddev=1e-3))
+                self.saved_weights.append(w)
+            return
+
+        nw = []
+        n_nans = 0
+
+        for w, sw in zip(mw, self.saved_weights):
+            nw.append(
+                tf.where(
+                    tf.math.is_finite(w),
+                    w,
+                    sw).numpy())
+            n_nans += tf.reduce_sum(
+                tf.cast(tf.logical_not(tf.math.is_finite(w)), 'int32')
+                    ).numpy()
+
+        if n_nans > 0:
+            print("NanSweeper: removed", n_nans, "NaNs or Infs")
+            # find them:
+            for w in self.model.weights:
+                if np.all(np.isfinite(w.numpy())):
+                    continue
+                print(w.name, 'had NaNs')
+
+            self.model.set_weights(nw)
+
+        self.saved_weights = nw
+ 

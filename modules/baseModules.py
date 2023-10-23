@@ -1,4 +1,4 @@
-print(__name__,">>> move to DeepJetCore soon")
+print(__name__, ">>> move to DeepJetCore soon")
 
 import tensorflow as tf
 

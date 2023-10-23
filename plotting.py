@@ -6,11 +6,10 @@ import matplotlib.patches as patches
 import uproot
 import sys
 import os
+import logging
 from datetime import datetime
 from typing import Type, TypeVar, Literal
-import logging
 logger = logging.getLogger(__name__)
-
 today = datetime.today().strftime("%Y-%m-%d")
 
 
@@ -42,18 +41,19 @@ class Extract:
         self.model_name\n
     """
 
-    def __init__(self,
-                 model_dir="./nntr_models",
-                 model_name="",
-                 read_hits=False,
-                 testing_root_files="./nntr_data/Raw/Testing.root"):
+    def __init__(
+            self,
+            model_dir="./nntr_models",
+            model_name="",
+            read_hits=False,
+            testing_root_files="./nntr_data/Raw/Testing.root"):
 
         self.model_dir = model_dir+"/"
         self.model_name = model_name
         self.nn_raw_data = {}
         self.testing_root_files = testing_root_files
-        self.predicted = self.nn_data(key="Predicted")
-        self.truth = self.nn_data(key="Truth")
+        self.predicted = self._nn_data(key="Predicted")
+        self.truth = self._nn_data(key="Truth")
         self.hits = []
         self.ATCCellNumCols = np.NaN
         self.ATCCellNumRows = np.NaN
@@ -63,6 +63,9 @@ class Extract:
 
         if "Uncertainties" in self.nn_raw_data.keys():
             self.uncertainties = self._nn_data(key="Uncertainties")
+            for key in self.uncertainties.keys():
+                self.uncertainties[key] = np.exp(self.uncertainties[key])
+                logger.info("Caution: Uncertainties were rescaled to exp(sigma)")
         else:
             self.uncertainties = []
 
@@ -80,8 +83,7 @@ class Extract:
         # Update: no it wont, blame it on DJC
         logger.info("Undo normalization, mean was", np.mean(array, axis=0))
 
-        with open(self.testing_root_files.rstrip(".root")+"_normalization.pkl",
-                  "rb") as file:
+        with open(self.testing_root_files.rstrip(".root")+"_normalization.pkl", "rb") as file:
             data = pickle.load(file)
             std, mean = np.array([]), np.array([])
             keys = ["mcPx", "mcPy", "mcPz", "decayX", "decayY", "decayZ"]
@@ -92,24 +94,24 @@ class Extract:
                     std = np.append(std, data["std"][key][i, 0])
 
         original_array = array*(std + 1E-10) + mean
-
         logger.info("Mean is now", np.mean(original_array))
+
         return original_array
 
     def _nn_data(self, key="Truth"):
         if self.model_name not in os.listdir(self.model_dir):
-            logger.error("No such model could be found at:\n" +
-                         f"{self.model_dir}/{self.model_name}\n" +
-                         "Available models are:", os.listdir(self.model_dir))
+            logger.error(
+                "No such model could be found at:\n" +
+                f"{self.model_dir}/{self.model_name}\n" +
+                "Available models are:", os.listdir(self.model_dir))
         else:
-            with open(f"{self.model_dir}/{self.model_name}/"
-                      + "Predicted/pred_Testing.djctd", "rb") as file:
+            with open(f"{self.model_dir}/{self.model_name}/Predicted/pred_Testing.djctd", "rb") as file:
                 self.nn_raw_data = pickle.load(file)
 
         return self._nn_find_physical_variables(self.nn_raw_data[key])
 
     def _nn_find_physical_variables(self, array: np.array):
-        array = self.undo_normalization(array)
+        array = self._undo_normalization(array)
 
         if np.shape(array)[1] == 12:
             return {
@@ -120,7 +122,7 @@ class Extract:
         else:
             logger.error(f"Wrong shape of array, is {np.shape(array)}")
 
-    def read_hits(self):
+    def _read_hits(self):
         filename = self.testing_root_files
 
         with uproot.open(filename) as event:
@@ -143,19 +145,22 @@ TOutput = TypeVar("TOutput", bound=Extract)
 
 class Plot:
 
-    def savefig(savefigdir,
-                data=Type[TOutput],
-                plot_type="",
-                obs=""):
+    def savefig(
+            savefigdir,
+            data=Type[TOutput],
+            plot_type="",
+            obs=""):
         if not savefigdir:
             savefigdir = f"{data.model_dir}/{data.model_name}/Plots/"
         os.makedirs(savefigdir, exist_ok=True)
         plt.savefig(f"{savefigdir}/{plot_type}_{obs}.png", dpi=600)
-    
-    def gaussian_uncertainties(ax: plt.axis,
-                               data: Type[TOutput],
-                               feature,
-                               errors):
+
+    def gaussian_uncertainties(
+            ax: plt.axis,
+            data: Type[TOutput],
+            feature,
+            errors):
+        return 0
         mean = np.mean(feature, axis=0)
         colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
@@ -171,15 +176,11 @@ class Plot:
                     label="Predicted Error",
                     ls="")
 
-    def scatter(data=Type[TOutput],
-                obs="v1",
-                axis=("x", "y"),
-                units="mm",
-                xlim=(),
-                ylim=(),
-                scalar_factor=1,
-                savefigdir="") -> None:
-
+    def scatter(
+            data=Type[TOutput],
+            obs="v1",
+            axis=("x", "y"),
+            scalar_factor=1) -> None:
         """ Produce a scatter plot in the plane defined by 'axis' to
         compare the predicted and true distributions of 'obs'.
 
@@ -194,30 +195,24 @@ class Plot:
             Factor for all quantities to account for unit conversions
             (e.g. MeV -> Gev)
         """
-
+        fig, plot = plt.subplots(figsize=(6, 6))
         p = data.predicted[obs]
         t = data.truth[obs]
         ax = {"x": 0, "y": 1, "z": 2}
 
-        plt.figure()
-        plt.scatter(x=p[..., ax[axis[0]]] * scalar_factor,
-                    y=p[..., ax[axis[1]]] * scalar_factor,
-                    alpha=0.1, marker=".",
-                    label="Predicted")
-        plt.scatter(x=t[..., ax[axis[0]]] * scalar_factor,
-                    y=t[..., ax[axis[1]]] * scalar_factor,
-                    alpha=0.3, marker=".",
-                    label="True")
-        plt.legend()
-        if xlim:
-            plt.xlim(xlim)
-        if ylim:
-            plt.ylim(ylim)
-        plt.xlabel(f"{axis[0]} [{units}]")
-        plt.ylabel(f"{axis[1]} [{units}]")
-        plt.title(f"Model {data.model_name}")
-        Plot.savefig(savefigdir, data, f"scatter_{axis[0]}_{axis[1]}", obs)
-        return None
+        plot.scatter(
+            x=p[..., ax[axis[0]]] * scalar_factor,
+            y=p[..., ax[axis[1]]] * scalar_factor,
+            alpha=0.1,
+            marker=".",
+            label="Predicted")
+        plot.scatter(
+            x=t[..., ax[axis[0]]] * scalar_factor,
+            y=t[..., ax[axis[1]]] * scalar_factor,
+            alpha=0.3,
+            marker=".",
+            label="True")
+        return plot
 
     def df(data=Type[TOutput],
            mean=False,
@@ -231,8 +226,9 @@ class Plot:
         obs = predicted.keys()
 
         if mean:
-            header = pd.MultiIndex.from_product(iterables=iterables,
-                                                names=["DataType", "Property"])
+            header = pd.MultiIndex.from_product(
+                iterables=iterables,
+                names=["DataType", "Property"])
             df = pd.DataFrame(columns=header)
             
             for i, ob in enumerate(obs):
@@ -242,10 +238,9 @@ class Plot:
                     df.loc[ob+axis, ("Mean", "Truth")] = np.mean(truth[ob], axis=0)[a]
                     df.loc[ob+axis, ("Uncertainties", "Truth")] = np.std(truth[ob], axis=0)[a]
         else:
-            header = pd.MultiIndex.from_product(iterables=[[eventID],
-                                                           ["Predicted",
-                                                            "Truth"]],
-                                                names=["EventID", "Property"])
+            header = pd.MultiIndex.from_product(
+                iterables=[[eventID], ["Predicted", "Truth"]],
+                names=["EventID", "Property"])
             df = pd.DataFrame(index=obs, columns=header)
 
             for i, ob in enumerate(obs):
@@ -255,29 +250,27 @@ class Plot:
         return df
 
     def tracks(data=Type[TOutput],
-               eventID=0,
-               axis="x",
-               savefigdir=""):
+               eventID=0):
         """ Method which calls the FullTrackReco class and plots the hits as
         well as the true and predicted trajectory of the photons based on the
         output from the network
         """
         if not data.hits:
-            logger.error("Error: Root files have not been extracted " +
-                         "yet. Use Extract.read_hits() or set " +
-                         "'read_hits' to True when using Extract().")
+            logger.error(
+                "Error: Root files have not been extracted yet. Use Extract.read_hits() or set " +
+                "'read_hits' to True when using Extract().")
 
         ftr = FullTrackReco(data, eventID)
-        plot = ftr.plot_mpl(axis=axis)
-        return plot
+        return ftr.plot_mpl
 
 
 class FullTrackReco:
-    def __init__(self,
-                 data=Type[TOutput],
-                 eventID=0,
-                 particle="photon",
-                 zlim=-10):
+    def __init__(
+            self,
+            data=Type[TOutput],
+            eventID=0,
+            particle="photon",
+            zlim=-10):
         self.nn_raw_data = []
         self.particle = particle
         self.zlim = zlim
@@ -316,24 +309,26 @@ class FullTrackReco:
         calo = self.df[self.df["layerType"] == 2]
         cg = np.zeros(self.ATCCellNumRows*self.ATCCellNumCols)
         cg[calo["cellID"]] = 1e3*calo["E"]  # Are in GeV in the root file
-        calo_colormesh = np.reshape(cg, (self.ATCCellNumRows,
-                                         self.ATCCellNumCols))
+        calo_colormesh = np.reshape(
+            cg, (self.ATCCellNumRows, self.ATCCellNumCols))
         width = self.ATCellSideLength*np.arange(
-                                        -np.floor(self.ATCCellNumCols/2),
-                                        np.ceil(self.ATCCellNumCols/2))
+            -np.floor(self.ATCCellNumCols/2),
+            +np.ceil(self.ATCCellNumCols/2))
         height = self.ATCellSideLength*np.arange(
-                                        -np.floor(self.ATCCellNumRows/2),
-                                        np.ceil(self.ATCCellNumRows/2))
-        im = self.ax.pcolormesh(width,
-                                height,
-                                calo_colormesh,
-                                cmap="GnBu",
-                                alpha=0.7,
-                                edgecolors="lightblue",
-                                linewidth=0.5)
-        plt.colorbar(mappable=im,
-                     pad=0.01,
-                     label="Calorimeter Energy Deposition [MeV]")
+            -np.floor(self.ATCCellNumRows/2),
+            +np.ceil(self.ATCCellNumRows/2))
+        im = self.ax.pcolormesh(
+            width,
+            height,
+            calo_colormesh,
+            cmap="GnBu",
+            alpha=0.7,
+            edgecolors="lightblue",
+            linewidth=0.5)
+        plt.colorbar(
+            mappable=im,
+            pad=0.01,
+            label="Calorimeter Energy Deposition [MeV]")
 
         # Tracker hits
         for layerID in range(0, self.ATLayerNum):
@@ -344,17 +339,19 @@ class FullTrackReco:
             else:
                 label = None
 
-            self.ax.scatter(x=trh["x"].values,
-                            y=trh["y"].values,
-                            marker=".",
-                            c=self.colors[layerID],
-                            label=label)
+            self.ax.scatter(
+                x=trh["x"].values,
+                y=trh["y"].values,
+                marker=".",
+                c=self.colors[layerID],
+                label=label)
 
         self.energy = 1e3*np.sum(calo["E"])
-        t = self.ax.text(x=0.50,
-                         y=0.88,
-                         s=f"{self.particle}, {self.ATLayerNum} AT layers",
-                         transform=self.ax.transAxes)
+        t = self.ax.text(
+            x=0.50,
+            y=0.88,
+            s=f"{self.particle}, {self.ATLayerNum} AT layers",
+            transform=self.ax.transAxes)
         t.set_bbox(dict(facecolor="white", alpha=0.5, edgecolor="k"))
 
         self.ax.set_xlim(width[0]-20, width[-1]+20)
@@ -365,8 +362,11 @@ class FullTrackReco:
         plt.title("Detector Hits")
         plt.tick_params(direction="in")
 
-    def plot_mpl(self,
-                 axis: Literal["x", "y"] = "x"):
+    def plot_mpl(
+            self,
+            axis: Literal["x", "y"] = "x",
+            show_absorber=False,
+            scale_hits_with_energy=False):
 
         fig, plot = plt.subplots(figsize=(6, 6))
         ax = {"x": 0, "y": 1}[axis]
@@ -379,35 +379,57 @@ class FullTrackReco:
         # Predicted
         p1 = p["p1"][self.eventID]*scalar_factor
         v1 = p["v1"][self.eventID]*scalar_factor
-        plot.plot([v1[2], p1[2]],
-                  p1[ax]/p1[2]*([v1[2], p1[2]] - v1[2]),
-                  color="green",
-                  label="Reconstr. photon 1")
+        plot.plot(
+            [v1[2], p1[2]],
+            p1[ax]/p1[2]*([v1[2], p1[2]] - v1[2]),
+            color="green",
+            label="Reconstr. photon 1")
 
         p2 = p["p2"][self.eventID]*scalar_factor
         v2 = p["v2"][self.eventID]*scalar_factor
-        plot.plot([v2[2], p2[2]],
-                  p2[ax]/p2[2]*([v2[2], p2[2]] - v2[2]),
-                  color="lightgreen",
-                  label="Reconstr. photon 2")
+        plot.plot(
+            [v2[2], p2[2]],
+            p2[ax]/p2[2]*([v2[2], p2[2]] - v2[2]),
+            color="lightgreen",
+            label="Reconstr. photon 2")
 
         # Truth
         p1 = t["p1"][self.eventID]*scalar_factor
         v1 = t["v1"][self.eventID]*scalar_factor
-        plot.plot([v1[2], p1[2]], 
-                  p1[ax]/p1[2]*([v1[2], p1[2]] - v1[2]),
-                  color="k",
-                  linestyle="dashed",
-                  alpha=0.5)
+        plot.plot(
+            [v1[2], p1[2]],
+            p1[ax]/p1[2]*([v1[2], p1[2]] - v1[2]),
+            color="k",
+            linestyle="dashed",
+            alpha=0.5)
 
         p2 = t["p2"][self.eventID]*scalar_factor
         v2 = t["v2"][self.eventID]*scalar_factor
-        plot.plot([v2[2], p2[2]], 
-                  p2[ax]/p2[2]*([v2[2], p2[2]] - v2[2]),
-                  color="k",
-                  label="True trajectory",
-                  linestyle="dashed",
-                  alpha=0.5)
+        plot.plot(
+            [v2[2], p2[2]],
+            p2[ax]/p2[2]*([v2[2], p2[2]] - v2[2]),
+            color="k",
+            label="True trajectory",
+            linestyle="dashed",
+            alpha=0.5)
+        
+        # Absorber
+        if show_absorber:
+            absorber = self.df[self.df["layerType"] == 0]
+
+            if scale_hits_with_energy:
+                absorber_hits_size = absorber["E"]/np.max(absorber["E"])*1E3
+            else:
+                absorber_hits_size = None
+
+            if not absorber["z"].empty:
+                plot.scatter(
+                    x=absorber["z"].values,
+                    y=absorber[axis].values,
+                    marker=".",
+                    color="k",
+                    label="Absorber",
+                    s=absorber_hits_size)
 
         # Tracker
         for layerID in range(0, self.ATLayerNum):
@@ -416,43 +438,53 @@ class FullTrackReco:
             if self.ATLayerNum <= 5:
                 label = f"Tracking Layer {layerID}"
             else:
-                label = None
+                label = "Tracking Layer"
+
+            if scale_hits_with_energy:
+                tracker_hits_size = trh["E"]/np.max(trh["E"])*1E3
+            else:
+                tracker_hits_size = None
 
             if not trh["z"].empty:
-                plot.scatter(x=trh["z"].values,
-                             y=trh[axis].values,
-                             marker=".",
-                             c=self.colors[layerID],
-                             label=label)
-                plot.vlines(x=trh["z"].values,
-                            ymin=-self.ATCellSideLength*self.ATCCellNumRows/2,
-                            ymax=self.ATCellSideLength*self.ATCCellNumCols/2,
-                            color=self.colors[layerID],
-                            alpha=0.1)
+                tracker_colors = self.colors
+                plot.scatter(
+                    x=trh["z"].values,
+                    y=trh[axis].values,
+                    marker=".",
+                    color=tracker_colors[layerID],
+                    label=label,
+                    s=tracker_hits_size)
+                plot.vlines(
+                    x=trh["z"].values,
+                    ymin=-self.ATCellSideLength*self.ATCCellNumRows/2,
+                    ymax=self.ATCellSideLength*self.ATCCellNumCols/2,
+                    color=self.colors[layerID],
+                    alpha=0.1)
             else:
                 pass
 
         # Calorimeter
         self.calo = self.df[self.df["layerType"] == 2]
         if not self.calo["z"].empty:
-            print(self.calo)
-            plot.vlines(x=self.calo["z"],
-                        ymin=self.calo[axis]-self.ATCellSideLength,
-                        ymax=self.calo[axis]+self.ATCellSideLength,
-                        alpha=0.7,
-                        colors="k")
+            plot.vlines(
+                x=self.calo["z"],
+                ymin=self.calo[axis]-self.ATCellSideLength,
+                ymax=self.calo[axis]+self.ATCellSideLength,
+                alpha=0.7,
+                colors="k")
             self.calo_center = self.calo["z"].iloc[0]
         else:
             self.calo_center = 450
             pass
 
         detector = patches.Rectangle(
-                          xy=(0, -self.ATCellSideLength*self.ATCCellNumRows/2),
-                          width=+self.CalorimeterThickness/2,
-                          height=self.ATCellSideLength*self.ATCCellNumRows,
-                          color="grey",
-                          alpha=0.1)
+            xy=(0, -self.ATCellSideLength*self.ATCCellNumRows/2),
+            width=+self.CalorimeterThickness/2,
+            height=self.ATCellSideLength*self.ATCCellNumRows,
+            color="grey",
+            alpha=0.1)
         plot.add_patch(detector)
+
         return fig, plot
 
 
@@ -460,34 +492,39 @@ if __name__ == "__main__":
     model_name = sys.argv[1]
 
     read_hits = False
-    data = Extract(model_dir="./nntr_models/idealized_detector",
-                   model_name=model_name,
-                   read_hits=read_hits,
-                   testing_root_files="./nntr_data/idealized_detector/Raw/Testing.root")
+    data = Extract(
+        model_dir="./nntr_models/idealized_detector",
+        model_name=model_name,
+        read_hits=read_hits,
+        testing_root_files="./nntr_data/idealized_detector/Raw/Testing.root")
 
-    Plot.histogram(data=data,
-                   obs="p1",
-                   xlabel="Normalized Momentum [MeV]",
-                   scalar_factor=1E3,
-                   nbins=np.linspace(-2.5E3, 2.5E3, 100))
+    Plot.histogram(
+        data=data,
+        obs="p1",
+        xlabel="Normalized Momentum [MeV]",
+        scalar_factor=1E3,
+        nbins=np.linspace(-2.5E3, 2.5E3, 100))
 
-    Plot.histogram(data=data,
-                   obs="v1",
-                   xlabel="Vertex Position [mm]",
-                   scalar_factor=1E3,
-                   nbins=np.linspace(-1200, 100, 100))
+    Plot.histogram(
+        data=data,
+        obs="v1",
+        xlabel="Vertex Position [mm]",
+        scalar_factor=1E3,
+        nbins=np.linspace(-1200, 100, 100))
 
-    Plot.scatter(data=data,
-                 obs="v1",
-                 xlim=(-1, 1),
-                 ylim=(-1, 1),
-                 scalar_factor=1,
-                 units="m")
+    Plot.scatter(
+        data=data,
+        obs="v1",
+        xlim=(-1, 1),
+        ylim=(-1, 1),
+        scalar_factor=1,
+        units="m")
 
-    Plot.scatter(data,
-                 "v1",
-                 xlim=(-2, 0),
-                 ylim=(-2, 2),
-                 scalar_factor=1,
-                 axis=("z", "x"),
-                 units="m")
+    Plot.scatter(
+        data,
+        "v1",
+        xlim=(-2, 0),
+        ylim=(-2, 2),
+        scalar_factor=1,
+        axis=("z", "x"),
+        units="m")

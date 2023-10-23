@@ -37,7 +37,7 @@ def AccumulateLinKnn(weights,  features, indices,
 
 
 def AccumulateKnn(distances,  features, indices, 
-                  mean_and_max=True,force_tf=False):
+                  mean_and_max=True, force_tf=False):
     '''
     
     .Output("out_features: float32")

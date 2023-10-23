@@ -16,7 +16,7 @@ class TrainData_TrackReco(TrainData):
                            "simulation to Awkward and Numpy arrays"
         
     def extract_to_array(self, key) -> ak.Array:
-        """This method extracts the events and hits for a given key in the root
+        """ This method extracts the events and hits for a given key in the root
         tree
         """
         with uproot.open(self.filename) as data:
@@ -61,10 +61,10 @@ class TrainData_TrackReco(TrainData):
     
     def find_offsets(self, features) -> np.ndarray:
         return np.cumsum(
-                    np.append(
-                        0, np.array(
-                            ak.to_list(
-                                ak.num(features, axis=1)))))
+            np.append(
+                0, np.array(
+                    ak.to_list(
+                        ak.num(features, axis=1)))))
 
     def convertFromSourceFile(self,
                               filename,

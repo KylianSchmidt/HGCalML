@@ -1,7 +1,4 @@
-from typing import Any
 import tensorflow as tf
-import keras.losses
-
 global_loss_list = {}
 
 
@@ -22,31 +19,29 @@ def loss_reduceMean(truth, pred):
 global_loss_list['loss_reduceMean'] = loss_reduceMean
 
 
-class nntr_L2_distance(keras.losses.Loss):
+class nntr_L2_distance(tf.keras.losses.Loss):
     """ Loss function for the reconstruction of two photons. Compares the
     accuracy of the reconstructed track with both real tracks and minimizes
     the combined distance.
     Version without norms, so len(truth) == 12
     """
-    def __init__(self,
-                 train_uncertainties=True,
-                 epsilon=1E-3,
-                 **kwargs) -> None:
-
-        super().__init__(reduction=tf.keras.losses.Reduction.NONE,
-                         name="nntr_L2_distance")
+    def __init__(self, train_uncertainties: bool = False, **kwargs) -> None:
+        super().__init__(
+            reduction=tf.keras.losses.Reduction.NONE,
+            name="nntr_L2_distance")
         self.train_uncertainties = train_uncertainties
-        self.eps = epsilon
 
-    def call(self,
-             truth,
-             prediction) -> Any:
+    def call(self, truth, prediction):
         """ Call method can only accept two *args (truth, prediction)
         """
         self.pred1, self.pred2, self.ln_sigma = self.prepare_inputs(prediction)
         self.truth = truth
 
-        return self.with_uncertainties()
+        if self.train_uncertainties:
+            return self.with_uncertainties()
+        
+        elif not self.train_uncertainties:
+            return self.without_uncertainties()
 
     def prepare_inputs(self, prediction):
         """ Expect always two vertices and permutate both to check which best
@@ -59,23 +54,47 @@ class nntr_L2_distance(keras.losses.Loss):
         Uncertainties are given as ln(sigma) with indices in 'prediction': \n
         12-23
         """
-
-        p = tf.debugging.check_numerics(prediction,
-                                        "Prediction has nans or infs")
-        pred1 = tf.concat([a for a in
-                          [p[:, 0:3],       # p1
-                           p[:, 3:6],       # v1
-                           p[:, 6:9],       # p2
-                           p[:, 9:12]]],    # v2
-                          axis=1)
-        pred2 = tf.concat([a for a in
-                          [p[:, 6:9],       # p2
-                           p[:, 9:12],      # v2
-                           p[:, 0:3],       # p1
-                           p[:, 3:6]]],     # v1
-                          axis=1)
+        p = tf.debugging.check_numerics(prediction, "Prediction has nans or infs")
+        pred1 = tf.concat(
+            [a for a in
+             [p[:, 0:3],       # p1
+              p[:, 3:6],       # v1
+              p[:, 6:9],       # p2
+              p[:, 9:12]]],    # v2
+            axis=1)
+        pred2 = tf.concat(
+            [a for a in
+             [p[:, 6:9],       # p2
+              p[:, 9:12],      # v2
+              p[:, 0:3],       # p1
+              p[:, 3:6]]],     # v1
+            axis=1)
         ln_sigma = p[:, 12:24]
-        return pred1, pred2, ln_sigma
+
+        return (pred1, pred2, ln_sigma)
+    
+    def without_uncertainties(self):
+        r""" Loss function without the uncertainty parameter 'sigma'
+
+        Latex formula:
+        \mathcal{L} = \left( \Vec{t} - \Vec{p} \right)^2
+        """
+        # Loss function
+        distance1 = tf.reduce_mean(
+            (self.pred1 - self.truth)**2,
+            axis=1,
+            keepdims=True)
+        distance2 = tf.reduce_mean(
+            (self.pred2 - self.truth)**2,
+            axis=1,
+            keepdims=True)
+        # Loss = E x min([d1, d2]) = E x 1
+        loss_per_event = tf.reduce_min(
+            tf.concat([distance1, distance2], axis=1),
+            axis=1)
+        # res = min(E x 1) = 1
+        res = tf.reduce_mean(loss_per_event)
+        return res
 
     def with_uncertainties(self):
         r""" Allows the network to estimate the uncertainty on the L2 distance
@@ -86,31 +105,21 @@ class nntr_L2_distance(keras.losses.Loss):
 
         For practical reasons, exp(sigma) is used to avoid divergences.
         """
-
-        # Turn off uncertainties in the loss by omitting it from d1 and d2
-        # and training it to zero in 'loss_per_event'
-        if self.train_uncertainties:
-            sigma_zero = 0.0
-            sigma = self.ln_sigma
-        else:
-            sigma_zero = self.ln_sigma
-            sigma = 0.0
-
         # Loss function
-        distance1 = tf.reduce_mean(((self.pred1 - self.truth)/(tf.exp(sigma)+self.eps))**2 + sigma**2,
-                                   axis=1,
-                                   keepdims=True)
-        distance2 = tf.reduce_mean(((self.pred2 - self.truth)/(tf.exp(sigma)+self.eps))**2 + sigma**2,
-                                   axis=1,
-                                   keepdims=True)
+        distance1 = tf.reduce_mean(
+            ((self.pred1 - self.truth)/(tf.exp(self.ln_sigma)))**2 + self.ln_sigma**2,
+            axis=1,
+            keepdims=True)
+        distance2 = tf.reduce_mean(
+            ((self.pred2 - self.truth)/(tf.exp(self.ln_sigma)))**2 + self.ln_sigma**2,
+            axis=1,
+            keepdims=True)
         # Loss = E x min([d1, d2]) = E x 1
-        loss_per_event = tf.reduce_min(tf.concat([distance1, distance2],
-                                                 axis=1),
-                                       axis=1) + tf.reduce_mean(sigma_zero**2)
+        loss_per_event = tf.reduce_min(
+            tf.concat([distance1, distance2], axis=1),
+            axis=1)
         # res = min(E x 1) = 1
-        res = tf.reduce_mean(loss_per_event)
-
-        return res
+        return tf.reduce_mean(loss_per_event)
 
 
 global_loss_list["nntr_L2_distance"] = nntr_L2_distance
