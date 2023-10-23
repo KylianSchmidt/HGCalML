@@ -66,10 +66,11 @@ class TrainData_TrackReco(TrainData):
                     ak.to_list(
                         ak.num(features, axis=1)))))
 
-    def convertFromSourceFile(self,
-                              filename,
-                              weightobjects,
-                              istraining):
+    def convertFromSourceFile(
+            self,
+            filename,
+            weightobjects,
+            istraining):
         """ Construct the feature, truth (and weightobejects) from a root file
         The data from the geant4 root files are jagged arrays of shape
 
@@ -88,40 +89,44 @@ class TrainData_TrackReco(TrainData):
         offsets = self.find_offsets(feature_array)
         truth_array = self.find_truth()
 
-        logger.info("\nData Info:\n----------\n" +
-                    f"Feature array | (with empty Events) | {len(feature_array)}\n" +
-                    f"Truth array   | (with empty Events) | {len(truth_array)}")
+        logger.info(
+            "\nData Info:\n----------\n" +
+            f"Feature array | (with empty Events) | {len(feature_array)}\n" +
+            f"Truth array   | (with empty Events) | {len(truth_array)}")
 
         feature_array, truth_array = self.remove_empty_events(
-                                        feature_array, truth_array, offsets)
+            feature_array, truth_array, offsets)
         
-        truth_array = truth_array.astype(dtype='float32',
-                                         order='C',
-                                         casting="same_kind")
+        truth_array = truth_array.astype(
+            dtype='float32',
+            order='C',
+            casting="same_kind")
         
         feature_array = ak.to_numpy(ak.flatten(feature_array, axis=1))
-        feature_array = feature_array.astype(dtype='float32',
-                                             order='C',
-                                             casting="same_kind")
+        feature_array = feature_array.astype(
+            dtype='float32',
+            order='C',
+            casting="same_kind")
         offsets = np.unique(offsets)
 
-        logging.info("\n" +
-                     f"Feature array| (without empty Events) | {np.shape(feature_array)}\n" +
-                     f"Truth array  | (without empty Events) | {np.shape(truth_array)}\n" +
-                     f"Offsets      | (without empty Events) | {np.shape(offsets)}\n" +
-                     "Mean and std of truth over N_events:\n" +
-                     f"mean = {self.truth_mean}\n" +
-                     f"std  = {self.truth_std}\n" +
-                     "----------")
+        logging.info(
+            f"Feature array| (without empty Events) | {np.shape(feature_array)}\n" +
+            f"Truth array  | (without empty Events) | {np.shape(truth_array)}\n" +
+            f"Offsets      | (without empty Events) | {np.shape(offsets)}\n" +
+            "Mean and std of truth over N_events:\n" +
+            f"mean = {self.truth_mean}\n" +
+            f"std  = {self.truth_std}\n" +
+            "----------")
         
         return ([SimpleArray(feature_array, offsets, name="Features")],
                 [truth_array],
                 [])
 
-    def remove_empty_events(self,
-                            features: np.ndarray,
-                            truth: np.ndarray,
-                            offsets_cumulative: np.ndarray):
+    def remove_empty_events(
+            self,
+            features: np.ndarray,
+            truth: np.ndarray,
+            offsets_cumulative: np.ndarray):
         """ Function which removes empty events by checking for double entries
         in the cumulative offsets arrays. This might be useful when layers
         compute objects like "means" which are ill-defined when there are empty
@@ -136,23 +141,25 @@ class TrainData_TrackReco(TrainData):
         logging.info("Removed empty arrays")
         return features[keep_index], truth[keep_index]
 
-    def writeOutPrediction(self,
-                           predicted,
-                           features,
-                           truth,
-                           weights,
-                           outfilename,
-                           inputfile) -> None:
+    def writeOutPrediction(
+            self,
+            predicted,
+            features,
+            truth,
+            weights,
+            outfilename,
+            inputfile) -> None:
         """ Defines the way the predicted data is stored to disk. Currently
         done using pickle.
 
         Predicted will be a list of numpy arrays
         """
 
-        data = {"Hits": features,
-                "Truth": truth[0],
-                "Predicted": predicted[0][:, 0:12],
-                "Uncertainties": predicted[0][:, 12:24]}
+        data = {
+            "Hits": features,
+            "Truth": truth[0],
+            "Predicted": predicted[0][:, 0:12],
+            "Uncertainties": predicted[0][:, 12:24]}
 
         with open(outfilename, "wb") as file:
             pickle.dump(data, file, pickle.HIGHEST_PROTOCOL)

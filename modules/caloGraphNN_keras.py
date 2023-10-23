@@ -225,7 +225,7 @@ class GarNet(keras.layers.Layer):
     def build(self, input_shape):
         self.input_feature_transform.build(input_shape)
         self.aggregator_distance.build(input_shape)
-        
+
         # tf.ragged FIXME? tf.shape()?
         self.output_feature_transform.build((
             input_shape[0],
