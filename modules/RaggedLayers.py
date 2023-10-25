@@ -329,9 +329,9 @@ class CollapseRagged(tf.keras.layers.Layer):
     def call(self, inputs):
         assert len(inputs) == 2
         x, rs = inputs # V x F, rs
-        xr = tf.RaggedTensor.from_row_splits(x,rs) # E x V'(var) x F
+        xr = tf.RaggedTensor.from_row_splits(x, rs) # E x V'(var) x F
         out = self.operation(xr, axis = 1)
-        out = tf.where( tf.logical_or( tf.math.is_nan(out), tf.math.is_inf(out)), 0., out  )
+        out = tf.where( tf.logical_or( tf.math.is_nan(out), tf.math.is_inf(out)), 0., out)
         return tf.reshape(out, [-1, x.shape[1]])
         
 
