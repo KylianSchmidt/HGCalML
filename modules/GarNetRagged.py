@@ -17,7 +17,7 @@ class GarNetRagged(LayerWithMetrics):
             H : number of hits
             F : number of features
             S : number of aggregators
-            P : number of propagators
+            P : number of propagators (n_FLR_nodes)
             rs: row splits
         """
         super().__init__(**kwargs)
@@ -25,29 +25,29 @@ class GarNetRagged(LayerWithMetrics):
         self.n_Fout_nodes = n_Fout_nodes
         self.n_FLR_nodes = n_FLR_nodes
 
-        self.input_feature_transform = tf.keras.layers.Dense(n_FLR_nodes, name="FLR")
-        self.aggregator_distance = tf.keras.layers.Dense(n_aggregators, name="S")
-        self.output_feature_transform = tf.keras.layers.Dense(n_Fout_nodes, activation="tanh", name="Fout")
+        with tf.name_scope(self.name+"F_LR"):
+            self.input_feature_transform = tf.keras.layers.Dense(n_FLR_nodes, name="FLR")
 
-        self._sublayers = [
-            self.input_feature_transform,
-            self.aggregator_distance,
-            self.output_feature_transform
-        ]
+        with tf.name_scope(self.name+"S"):
+            self.aggregator_distance = tf.keras.layers.Dense(n_aggregators, name="S")
+        
+        with tf.name_scope(self.name+"F_out"):
+            self.output_feature_transform = tf.keras.layers.Dense(n_Fout_nodes, activation="tanh", name="F_out")
 
     def build(self, input_shape):
-        print("Input shape in GarNetRagged.build", input_shape)
         input_shape = input_shape[0]
-        self.input_feature_transform.build(input_shape)
-        self.aggregator_distance.build(input_shape)
-        self.output_feature_transform.build((
-            input_shape[0],
-            input_shape[1],
-            2*self.n_FLR_nodes*self.n_aggregators))
 
-        for layer in self._sublayers:
-            self._trainable_weights += layer.trainable_weights
-            self._non_trainable_weights += layer.non_trainable_weights
+        with tf.name_scope(self.name+"F_LR"):
+            self.input_feature_transform.build(input_shape)
+
+        with tf.name_scope(self.name+"S"):
+            self.aggregator_distance.build(input_shape)
+
+        with tf.name_scope(self.name+"F_out"):
+            # F_out (B*H, F+2*S*P)
+            self.output_feature_transform.build((
+                input_shape[0],
+                input_shape[1] + 2*self.n_FLR_nodes*self.n_aggregators))
 
         super().build(input_shape)
 
@@ -56,31 +56,31 @@ class GarNetRagged(LayerWithMetrics):
         # d distance between H vertices and S aggregators
         # d = Dense(B*H, F) = (B*H, S)
         distance = self.aggregator_distance(x)
-        # Matrix V(d_jk: (B, H, S)
-        edge_weights = tf.RaggedTensor.from_row_splits(tf.exp(-distance**2), rs)
-        # F_LR: rs(Dense(B*H, F)) = rs(B*H, P) = (B, H, P)
+        # Matrix V(d_jk: (B*H, S)
+        edge_weights = tf.exp(-distance**2)
+        # F_LR: rs(Dense(B*H, F)) = (B*H, P)
         # Has same shape as x but learned representation therefore new values
-        features_LR = tf.RaggedTensor.from_row_splits(self.input_feature_transform(x), rs)
-        # f_tilde: f_ij x V(d_jk) = (B, H, 1, P) x (B, H, S, 1) = (B, H, S, P)
-        f_tilde = features_LR * edge_weights
-    #    f_tilde = tf.expand_dims(features_LR, axis=2) * tf.expand_dims(edge_weights, axis=3)
-        # Aggregation of f_tilde (B, S, 2*P))
+        features_LR = self.input_feature_transform(x)
+        # f_tilde: f_ij x V(d_jk) = (B*H, 1, P) x (B*H, S, 1) = (B*H, S, P)
+        f_tilde = tf.expand_dims(features_LR, axis=1) * tf.expand_dims(edge_weights, axis=2)
+        # f_tilde: rs(Dense(B*H, S, P)) = (B, H, S, P)
+        f_tilde = tf.RaggedTensor.from_row_splits(f_tilde, rs)
+        # Aggregation of f_tilde (B, S, 2*P)
         f_tilde_aggregated = tf.concat([
-            tf.reduce_mean(f_tilde+1E-10, axis=1),
-            tf.reduce_max(f_tilde, axis=1)],
-            axis=-1)
-        # Return f_updated to the hits: (B, 1, S, 2*P) x (B, H, S, 1)  = (B, H, S, 2*P)
-        print("TESZ", f_tilde.row_splits)
-        print("edge_weights", edge_weights.row_splits)
-        f_updated = tf.expand_dims(f_tilde_aggregated, axis=1) * tf.expand_dims(edge_weights, axis=3)
-        # Reshape to (B, H, 2*P*S)
-        f_updated = f_updated.merge_dims(2, 3)
-        # Feature vector as (B, H, F+2*P*S)
-        f_out = tf.concat([
-            tf.RaggedTensor.from_row_splits(x, rs),
-            f_updated],
-            axis=-1)
-        f_out = self.output_feature_transform(f_updated)
+            tf.math.reduce_mean(f_tilde+1E-10, axis=1),
+            tf.math.reduce_max(f_tilde, axis=1)],
+            axis=2)
+        # Return f_updated to the hits: (B, S, 2*P) x (B*H, S, 1)  = (B*H, S, 2*P)
+        f_updated = f_tilde_aggregated * tf.expand_dims(edge_weights, axis=2)
+        # Reshape to (B*H, 2*P*S)
+        f_updated = tf.reshape(
+            f_updated,
+            [tf.shape(f_updated)[0], 2*self.n_FLR_nodes*self.n_aggregators])
+        # Feature vector as (B*H, F+2*P*S)
+        f_out = tf.concat(
+            [x, f_updated],
+            axis=1)
+        f_out = self.output_feature_transform(f_out)
 
         return f_out, distance
 
