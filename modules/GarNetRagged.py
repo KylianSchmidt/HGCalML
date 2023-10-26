@@ -30,7 +30,7 @@ class GarNetRagged(LayerWithMetrics):
 
         with tf.name_scope(self.name+"S"):
             self.aggregator_distance = tf.keras.layers.Dense(n_aggregators, name="S")
-        
+
         with tf.name_scope(self.name+"F_out"):
             self.output_feature_transform = tf.keras.layers.Dense(n_Fout_nodes, activation="tanh", name="F_out")
 
@@ -89,5 +89,6 @@ class GarNetRagged(LayerWithMetrics):
             "n_aggregators": self.n_aggregators,
             "n_Fout_nodes": self.n_Fout_nodes,
             "n_FLR_nodes": self.n_FLR_nodes,
-            "name": self.name}
+            "name": self.name
+        }
         return dict(list(super().get_config().items()) + list(config.items()))
