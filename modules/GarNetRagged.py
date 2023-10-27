@@ -58,7 +58,7 @@ class GarNetRagged(LayerWithMetrics):
     def call(self, inputs):
         x, rs = inputs
         # d distance between H vertices and S aggregators
-        # d = Dense(E*H, F) = (E*H, S)
+        # d: Dense(E*H, F) = (E*H, S)
         distance = self.aggregator_distance(x)
         # Matrix V(d_jk: (E*H, S)
         edge_weights = tf.exp(-distance**2)
@@ -71,12 +71,12 @@ class GarNetRagged(LayerWithMetrics):
         f_tilde = tf.RaggedTensor.from_row_splits(f_tilde, rs)
         # rs(E*H, S) = (E, H, S)
         edge_weights = tf.RaggedTensor.from_row_splits(edge_weights, rs)
-        # Return f_updated to the hits: (E, H, S, 2*P) x (E, H, S, 1) = (E, H, S, 2*P)
+        # Return f_updated to the hits: (E, H, S, P) x (E, H, S, 1) = (E, H, S, P)
         f_updated = f_tilde * tf.expand_dims(edge_weights, axis=3)
-        # Reshape to (E, H, 2*P*S)
+        # Reshape to (E, H, P*S)
         f_updated = f_updated.merge_dims(2, 3)
         f_updated = f_updated.merge_dims(0, 1)
-        # Feature vector as (E*H, F+2*P*S)
+        # Feature vector as (E*H, F+P*S)
         f_out = tf.concat(
             [x, f_updated],
             axis=1)

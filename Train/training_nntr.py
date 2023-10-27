@@ -4,7 +4,6 @@ Uses the GravNet architecture
 '''
 
 import os
-import shutil
 import tensorflow as tf
 from Losses import nntr_L2_distance
 from Layers import RaggedGlobalExchange
