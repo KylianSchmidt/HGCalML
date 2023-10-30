@@ -51,7 +51,7 @@ class GarNetRagged(LayerWithMetrics):
             # F_out (E*H, F+2*S*P)
             self.output_feature_transform.build((
                 input_shape[0],
-                input_shape[1] + 2*self.n_FLR_nodes*self.n_aggregators))  # TODO change to 2
+                input_shape[1] + 1*self.n_FLR_nodes*self.n_aggregators))  # TODO change to 2
 
         super().build(input_shape)
 
@@ -70,17 +70,30 @@ class GarNetRagged(LayerWithMetrics):
         # f_tilde: rs(Dense(E*H, S, P)) = (E, H, S, P)
         f_tilde = tf.RaggedTensor.from_row_splits(f_tilde, rs)
         # f_tilde_mean (E, 1, S, P)
-        f_tilde_mean = tf.reduce_mean(f_tilde, axis=1, keepdims=True)
-        # f_tilde_mean (E, 1, S, P)
-        f_tilde_mean = tf.RaggedTensor.from_tensor(f_tilde_mean).with_row_splits_dtype(tf.int32)
-        print("F_tilde", f_tilde_mean.shape)
+        f_tilde_mean = tf.reduce_mean(f_tilde, axis=1, keepdims=False)
+
         # rs(E*H, S) = (E, H, S)
         edge_weights = tf.RaggedTensor.from_row_splits(edge_weights, rs)
+
+        rl = edge_weights.row_lengths()
+
+        # Repeat
+        f_tilde_mean = tf.repeat(f_tilde_mean, rl, axis=0)
+
+        # f_tilde_mean (E, 1, S, P)
+        f_tilde_mean = tf.RaggedTensor.from_row_lengths(
+            values=f_tilde_mean,
+            row_lengths=rl
+            ).with_row_splits_dtype(tf.int32)
+        print("F_tilde", f_tilde_mean.shape)
+
         # edge_weights (E, H, S, 1)
         edge_weights = tf.expand_dims(edge_weights, axis=3)
         print("EDGE_WEIGHTS SHAPE", edge_weights.shape)
+
         # Return f_updated to the hits: (E, 1, S, P) x (E, H, S, 1) = (E, H, S, P)
         f_updated = f_tilde_mean * edge_weights
+
         # Reshape to (E, H, P*S)
         f_updated = f_updated.merge_dims(2, 3)
         f_updated = f_updated.merge_dims(0, 1)
