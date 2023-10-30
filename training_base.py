@@ -22,19 +22,19 @@ logger = logging.getLogger(__name__)
 class TrainingBase(object):
 
     def __init__(
-            self,
-            inputDataCollection: str,
-            outputDir: str,
-            valdata: str = "",
-            takeweights: str = "",
-            split_train_and_test=0.85,
-            use_weights=False,
-            test_run=False,
-            test_run_fraction=0.1,
-            renew_tokens=False,
-            collection_class=DataCollection,
-            resume_silently=False,
-            recreate_silently=False
+        self,
+        inputDataCollection: str,
+        outputDir: str,
+        valdata: str = "",
+        takeweights: str = "",
+        split_train_and_test=0.85,
+        use_weights=False,
+        test_run=False,
+        test_run_fraction=0.1,
+        renew_tokens=False,
+        collection_class=DataCollection,
+        resume_silently=False,
+        recreate_silently=False
     ):
 
         scriptname = sys.argv[0]
@@ -291,7 +291,7 @@ class TrainingBase(object):
             metrics=None,
             is_eager=False,
             **compile_args
-    ):
+            ):
         if not self.keras_model and not self.GAN_mode:
             raise Exception('set model first')
 
@@ -380,7 +380,7 @@ class TrainingBase(object):
             max_files=-1,
             plot_batch_loss=False,
             **trainargs
-    ):
+            ):
         self.keras_model.run_eagerly = run_eagerly
         # write only after the output classes have been added
         self._initTraining(nepochs, batchsize, batchsize_use_sum_of_squares)
