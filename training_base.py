@@ -6,6 +6,7 @@ import copy
 import matplotlib
 import logging
 from _thread import start_new_thread
+from argparse import ArgumentParser
 from DeepJetCore.training.tokenTools import checkTokens, renew_token_process
 from DeepJetCore.training.gpuTools import DJCSetGPUs
 from DeepJetCore import DataCollection
@@ -20,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 
 class TrainingBase(object):
-
     def __init__(
         self,
         inputDataCollection: str,
@@ -291,7 +291,7 @@ class TrainingBase(object):
             metrics=None,
             is_eager=False,
             **compile_args
-            ):
+    ):
         if not self.keras_model and not self.GAN_mode:
             raise Exception('set model first')
 
@@ -380,7 +380,7 @@ class TrainingBase(object):
             max_files=-1,
             plot_batch_loss=False,
             **trainargs
-            ):
+    ):
         self.keras_model.run_eagerly = run_eagerly
         # write only after the output classes have been added
         self._initTraining(nepochs, batchsize, batchsize_use_sum_of_squares)
@@ -490,3 +490,40 @@ class TrainingBase(object):
         else:
             tf.keras.backend.set_value(
                 self.keras_model.optimizer.lr, new_lr)
+
+
+if __name__ == "__main__":
+    parser = ArgumentParser('Train a model from the Command Line')
+    parser.add_argument('inputDataCollection')
+    parser.add_argument('outputDir')
+    parser.add_argument(
+        '--modelMethod',
+        help='Method to be used to instantiate model in derived training class',
+        metavar='OPT',
+        default=None)
+    parser.add_argument(
+        "--gpu",
+        help="select specific GPU",
+        metavar="OPT",
+        default="")
+    parser.add_argument(
+        "--gpufraction",
+        help="select memory fraction for GPU",
+        type=float,
+        metavar="OPT",
+        default=-1)
+    parser.add_argument(
+        "--submitbatch",
+        help="submits the job to condor",
+        default=False,
+        action="store_true")
+    parser.add_argument(
+        "--walltime",
+        help="sets the wall time for the batch job, format: 1d5h or 2d or 3h etc",
+        default='1d')
+    parser.add_argument("--isbatchrun", help="is batch run", default=False, action="store_true")
+    parser.add_argument("--valdata", help="set validation dataset (optional)", default="")
+    parser.add_argument(
+        "--takeweights",
+        help="Applies weights from the model given as relative or absolute path. Matches by names and skips layers that don't match.",
+        default="")

@@ -51,63 +51,61 @@ class GarNetRagged(LayerWithMetrics):
             # F_out (E*H, F+2*S*P)
             self.output_feature_transform.build((
                 input_shape[0],
-                input_shape[1] + 1*self.n_FLR_nodes*self.n_aggregators))  # TODO change to 2
+                input_shape[1] + 2*self.n_FLR_nodes*self.n_aggregators))
 
         super().build(input_shape)
 
     def call(self, inputs):
         x, rs = inputs
-        # d distance between H vertices and S aggregators
-        # d: Dense(E*H, F) = (E*H, S)
+        # Dense(E*H, F) = (E*H, S)
         distance = self.aggregator_distance(x)
-        # Matrix V(d_jk: (E*H, S)
+        # (E*H, S)
         edge_weights = tf.exp(-distance**2)
-        # F_LR: rs(Dense(E*H, F)) = (E*H, P)
+        # rs(Dense(E*H, F)) = (E*H, P)
         # Has same shape as x but learned representation therefore new values
         features_LR = self.input_feature_transform(x)
-        # f_tilde: f_ij x V(d_jk) = (E*H, 1, P) x (E*H, S, 1) = (E*H, S, P)
+        # (E*H, 1, P) x (E*H, S, 1) = (E*H, S, P)
         f_tilde = tf.expand_dims(features_LR, axis=1) * tf.expand_dims(edge_weights, axis=2)
-        # f_tilde: rs(Dense(E*H, S, P)) = (E, H, S, P)
-        f_tilde = tf.RaggedTensor.from_row_splits(f_tilde, rs)
-        # f_tilde_mean (E, 1, S, P)
+        # rs(Dense(E*H, S, P)) = (E, H, S, P)
+        f_tilde = tf.RaggedTensor.from_row_splits(f_tilde, rs).with_row_splits_dtype(tf.int64)
+
+        # (E, S, P)
         f_tilde_mean = tf.reduce_mean(f_tilde, axis=1, keepdims=False)
+        f_tilde_max = tf.reduce_max(f_tilde, axis=1, keepdims=False)
 
         # rs(E*H, S) = (E, H, S)
         edge_weights = tf.RaggedTensor.from_row_splits(edge_weights, rs)
-
         rl = edge_weights.row_lengths()
 
-        # Repeat
-        f_tilde_mean = tf.repeat(f_tilde_mean, rl, axis=0)
-
-        # f_tilde_mean (E, 1, S, P)
+        # (E, H, S, P)
         f_tilde_mean = tf.RaggedTensor.from_row_lengths(
-            values=f_tilde_mean,
+            values=tf.repeat(f_tilde_mean, rl, axis=0),
             row_lengths=rl
             ).with_row_splits_dtype(tf.int32)
-        print("F_tilde", f_tilde_mean.shape)
-
-        # edge_weights (E, H, S, 1)
-        edge_weights = tf.expand_dims(edge_weights, axis=3)
-        print("EDGE_WEIGHTS SHAPE", edge_weights.shape)
-
-        # Return f_updated to the hits: (E, 1, S, P) x (E, H, S, 1) = (E, H, S, P)
-        f_updated = f_tilde_mean * edge_weights
-
-        # Reshape to (E, H, P*S)
+        # (E, H, S, P)
+        f_tilde_max = tf.RaggedTensor.from_row_lengths(
+            values=tf.repeat(f_tilde_max, rl, axis=0),
+            row_lengths=rl
+            ).with_row_splits_dtype(tf.int32)    
+        # (E, H, S, P) x (E, H, S, 1) = (E, H, S, P)
+        f_tilde_mean_aggregated = f_tilde_mean * tf.expand_dims(edge_weights, axis=3)
+        f_tilde_max_aggregated = f_tilde_max * tf.expand_dims(edge_weights, axis=3)
+        # (E, H, S, 2*P)
+        f_updated = tf.concat(
+            [f_tilde_max_aggregated.with_row_splits_dtype(tf.int64),
+             f_tilde_mean_aggregated.with_row_splits_dtype(tf.int64)],
+            axis=2
+            )
+        # (E, H, 2*P*S)
         f_updated = f_updated.merge_dims(2, 3)
+        # (E*H. 2*P*S)
         f_updated = f_updated.merge_dims(0, 1)
-        # Feature vector as (E*H, F+P*S)
+        # (E*H, F+2*P*S)
         f_out = tf.concat(
             [x, f_updated],
             axis=1)
-        f_out = self.output_feature_transform(f_out)
-
+        f_out = self.output_feature_transform(f_out.to_tensor())
         return f_out, distance
-
-    def take_mean(self, input: tf.RaggedTensor, axis: int):
-        # (E, H, S, P) -> (E, H, S, P)
-        return 0
 
     def get_config(self):
         config = {

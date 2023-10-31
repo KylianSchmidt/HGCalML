@@ -53,8 +53,12 @@ global_layers_list['GridMaxPoolReduction']=GridMaxPoolReduction
 from LayersRagged import RaggedGlobalExchange
 global_layers_list['RaggedGlobalExchange']=RaggedGlobalExchange
 
-##GravNet...
+# GarNet
 
+from GarNetRagged import GarNetRagged
+global_layers_list["GarNetRagged"] = GarNetRagged
+
+# GravNet...
 
 from GravNetLayersRagged import Abs
 global_layers_list['Abs']=Abs
