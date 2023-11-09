@@ -107,11 +107,11 @@ class nntr_L2_distance(tf.keras.losses.Loss):
         """
         # Loss function
         distance1 = tf.reduce_mean(
-            ((self.pred1 - self.truth)/(tf.exp(self.ln_sigma)))**2 + self.ln_sigma**2,
+            ((self.pred1 - self.truth)/(tf.exp(self.ln_sigma)))**2 + 2*self.ln_sigma,
             axis=1,
             keepdims=True)
         distance2 = tf.reduce_mean(
-            ((self.pred2 - self.truth)/(tf.exp(self.ln_sigma)))**2 + self.ln_sigma**2,
+            ((self.pred2 - self.truth)/(tf.exp(self.ln_sigma)))**2 + 2*self.ln_sigma,
             axis=1,
             keepdims=True)
         # Loss = E x min([d1, d2]) = E x 1

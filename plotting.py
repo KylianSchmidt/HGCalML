@@ -46,9 +46,11 @@ class Extract:
             model_dir="./nntr_models",
             model_name="",
             read_hits=False,
-            testing_root_files="./nntr_data/Raw/Testing.root"):
+            testing_root_files="./nntr_data/Raw/Testing.root",
+            predicted_dir="Predicted"):
 
         self.model_dir = model_dir+"/"
+        self.predicted_dir = predicted_dir
         self.model_name = model_name
         self.nn_raw_data = {}
         self.testing_root_files = testing_root_files
@@ -105,7 +107,7 @@ class Extract:
                 f"{self.model_dir}/{self.model_name}\n" +
                 "Available models are:", os.listdir(self.model_dir))
         else:
-            with open(f"{self.model_dir}/{self.model_name}/Predicted/pred_Testing.djctd", "rb") as file:
+            with open(f"{self.model_dir}/{self.model_name}/{self.predicted_dir}/pred_Testing.djctd", "rb") as file:
                 self.nn_raw_data = pickle.load(file)
 
         return self._nn_find_physical_variables(self.nn_raw_data[key])

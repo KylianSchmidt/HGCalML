@@ -3,6 +3,7 @@ from DeepJetCore import SimpleArray
 import numpy as np
 import uproot
 import awkward as ak
+import pandas as pd
 import pickle
 import logging
 logger = logging.getLogger(__name__)
@@ -13,64 +14,9 @@ class TrainData_TrackReco(TrainData):
     def __init__(self):
         TrainData.__init__(self)
         self.description = "This Class converts Root files from a Geant4 " + \
-                           "simulation to Awkward and Numpy arrays"
-        
-    def extract_to_array(self, key) -> ak.Array:
-        """ This method extracts the events and hits for a given key in the root
-        tree
-        """
-        with uproot.open(self.filename) as data:
-            return data[key].array(library="ak")
-        
-    def find_hits(self) -> ak.Array:
-        keys = ["layerType", "x", "y", "z", "E"]
-        prefix = "Events/Output/fHits/fHits."
-        d, arr = {}, []
+            "simulation to Awkward and Numpy arrays"
 
-        for keys in keys:
-            d[keys] = self.extract_to_array(prefix+keys)
-            d[keys] = d[keys].mask[d["layerType"] > 0]
-            arr.append(d[keys][..., np.newaxis])
-
-        return ak.concatenate(arr, axis=-1)
-    
-    def find_truth(self) -> ak.Array:
-        """ In this case, the NN will be trained to recreate the vertex of the
-        initial particles
-        Also normalizes the iinputs to have mean 0 and std 1
-        """
-        keys = ["mcPx", "mcPy", "mcPz", "decayX", "decayY", "decayZ"]
-        prefix_truth = "Events/Output/fParticles/fParticles."
-        arr = []
-
-        for keys in keys:
-            truth_original = self.extract_to_array(prefix_truth+keys)/1000
-            self.truth_mean = np.mean(truth_original, axis=0, keepdims=True)
-            self.truth_std = np.std(truth_original, axis=0, keepdims=True)
-            truth_normalized = (truth_original - self.truth_mean)/(self.truth_std+1E-10)
-            arr.append(truth_normalized[..., np.newaxis])
-
-        truth_array = ak.concatenate(arr, axis=-1)
-        truth_array = ak.flatten(truth_array, axis=-1)
-        truth_array = np.array(ak.to_list(truth_array))
-
-        self.truth_mean = np.mean(truth_array, axis=0)
-        self.truth_std = np.std(truth_array, axis=0)
-        truth_array = (truth_array - self.truth_mean)/(self.truth_std+1E-10)
-        return truth_array
-    
-    def find_offsets(self, features) -> np.ndarray:
-        return np.cumsum(
-            np.append(
-                0, np.array(
-                    ak.to_list(
-                        ak.num(features, axis=1)))))
-
-    def convertFromSourceFile(
-            self,
-            filename,
-            weightobjects,
-            istraining):
+    def convertFromSourceFile(self, filename, weightobjects, istraining):
         """ Construct the feature, truth (and weightobejects) from a root file
         The data from the geant4 root files are jagged arrays of shape
 
@@ -85,41 +31,26 @@ class TrainData_TrackReco(TrainData):
         """
         self.filename = filename
 
-        feature_array = self.find_hits()
-        offsets = self.find_offsets(feature_array)
-        truth_array = self.find_truth()
+        with open(filename) as file:
+            data = pickle.load(file)
+            feature = data["hits"]
+            truth = data["truth"]
+            offsets = data["offsets"]
 
-        logger.info(
-            "\nData Info:\n----------\n" +
-            f"Feature array | (with empty Events) | {len(feature_array)}\n" +
-            f"Truth array   | (with empty Events) | {len(truth_array)}")
-
-        feature_array, truth_array = self.remove_empty_events(
-            feature_array, truth_array, offsets)
+        #feature, truth = self.remove_empty_events(feature, truth, offsets)
         
-        truth_array = truth_array.astype(
+        truth = truth.astype(
             dtype='float32',
             order='C',
             casting="same_kind")
         
-        feature_array = ak.to_numpy(ak.flatten(feature_array, axis=1))
-        feature_array = feature_array.astype(
+        feature = feature.astype(
             dtype='float32',
             order='C',
             casting="same_kind")
-        offsets = np.unique(offsets)
-
-        logging.info(
-            f"Feature array| (without empty Events) | {np.shape(feature_array)}\n" +
-            f"Truth array  | (without empty Events) | {np.shape(truth_array)}\n" +
-            f"Offsets      | (without empty Events) | {np.shape(offsets)}\n" +
-            "Mean and std of truth over N_events:\n" +
-            f"mean = {self.truth_mean}\n" +
-            f"std  = {self.truth_std}\n" +
-            "----------")
         
-        return ([SimpleArray(feature_array, offsets, name="Features")],
-                [truth_array],
+        return ([SimpleArray(feature, offsets, name="Features")],
+                [truth],
                 [])
 
     def remove_empty_events(

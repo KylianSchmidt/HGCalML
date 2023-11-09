@@ -116,7 +116,8 @@ class Prediction():
                 gen.feedNumpyData(),
                 steps=gen.getNBatches(),
                 max_queue_size=1,
-                use_multiprocessing=False, verbose=1)
+                use_multiprocessing=False,
+                verbose=1)
 
             features = td.transferFeatureListToNumpy(self.args["pad_rowsplits"])
             truth = td.transferTruthListToNumpy(self.args["pad_rowsplits"])

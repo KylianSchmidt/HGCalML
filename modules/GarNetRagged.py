@@ -65,9 +65,11 @@ class GarNetRagged(LayerWithMetrics):
         # Has same shape as x but learned representation therefore new values
         features_LR = self.input_feature_transform(x)
         # (E*H, 1, P) x (E*H, S, 1) = (E*H, S, P)
-        f_tilde = tf.expand_dims(features_LR, axis=1) * tf.expand_dims(edge_weights, axis=2)
+        f_tilde = tf.expand_dims(features_LR, axis=1) * \
+            tf.expand_dims(edge_weights, axis=2)
         # rs(Dense(E*H, S, P)) = (E, H, S, P)
-        f_tilde = tf.RaggedTensor.from_row_splits(f_tilde, rs).with_row_splits_dtype(tf.int64)
+        f_tilde = tf.RaggedTensor.from_row_splits(
+            f_tilde, rs).with_row_splits_dtype(tf.int64)
 
         # (E, S, P)
         f_tilde_mean = tf.reduce_mean(f_tilde, axis=1, keepdims=False)
@@ -78,24 +80,26 @@ class GarNetRagged(LayerWithMetrics):
         rl = edge_weights.row_lengths()
 
         # (E, H, S, P)
-        f_tilde_mean = tf.RaggedTensor.from_row_lengths(
+        f_tilde_mean_ragged = tf.RaggedTensor.from_row_lengths(
             values=tf.repeat(f_tilde_mean, rl, axis=0),
             row_lengths=rl
-            ).with_row_splits_dtype(tf.int32)
+        ).with_row_splits_dtype(tf.int32)
         # (E, H, S, P)
-        f_tilde_max = tf.RaggedTensor.from_row_lengths(
+        f_tilde_max_ragged = tf.RaggedTensor.from_row_lengths(
             values=tf.repeat(f_tilde_max, rl, axis=0),
             row_lengths=rl
-            ).with_row_splits_dtype(tf.int32)    
+        ).with_row_splits_dtype(tf.int32)
         # (E, H, S, P) x (E, H, S, 1) = (E, H, S, P)
-        f_tilde_mean_aggregated = f_tilde_mean * tf.expand_dims(edge_weights, axis=3)
-        f_tilde_max_aggregated = f_tilde_max * tf.expand_dims(edge_weights, axis=3)
+        f_tilde_mean_aggregated = f_tilde_mean_ragged * \
+            tf.expand_dims(edge_weights, axis=3)
+        f_tilde_max_aggregated = f_tilde_max_ragged * \
+            tf.expand_dims(edge_weights, axis=3)
         # (E, H, S, 2*P)
         f_updated = tf.concat(
             [f_tilde_max_aggregated.with_row_splits_dtype(tf.int64),
              f_tilde_mean_aggregated.with_row_splits_dtype(tf.int64)],
             axis=2
-            )
+        )
         # (E, H, 2*P*S)
         f_updated = f_updated.merge_dims(2, 3)
         # (E*H. 2*P*S)
@@ -105,7 +109,7 @@ class GarNetRagged(LayerWithMetrics):
             [x, f_updated],
             axis=1)
         f_out = self.output_feature_transform(f_out.to_tensor())
-        return f_out, distance
+        return f_out, tf.concat([f_tilde_mean, f_tilde_max], axis=2)
 
     def get_config(self):
         config = {
