@@ -1,7 +1,7 @@
 
 import tensorflow as tf
 from baseModules import LayerWithMetrics
-from Losses import nntr_L2_distance
+from Losses import NNTRL2Distance
 from Layers import RaggedGlobalExchange
 from RaggedLayers import CollapseRagged
 from GravNetLayersRagged import (CastRowSplits, ScaledGooeyBatchNorm2, RaggedGravNet)

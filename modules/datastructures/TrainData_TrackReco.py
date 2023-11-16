@@ -32,12 +32,10 @@ class TrainData_TrackReco(TrainData):
         self.filename = filename
 
         with open(filename) as file:
-            data = pickle.load(file)
+            data = pickle.load(file, "b")
             feature = data["hits"]
             truth = data["truth"]
             offsets = data["offsets"]
-
-        #feature, truth = self.remove_empty_events(feature, truth, offsets)
         
         truth = truth.astype(
             dtype='float32',
@@ -49,28 +47,7 @@ class TrainData_TrackReco(TrainData):
             order='C',
             casting="same_kind")
         
-        return ([SimpleArray(feature, offsets, name="Features")],
-                [truth],
-                [])
-
-    def remove_empty_events(
-            self,
-            features: np.ndarray,
-            truth: np.ndarray,
-            offsets_cumulative: np.ndarray):
-        """ Function which removes empty events by checking for double entries
-        in the cumulative offsets arrays. This might be useful when layers
-        compute objects like "means" which are ill-defined when there are empty
-        arrays
-        """
-        keep_index = np.zeros(len(offsets_cumulative)-1, dtype='bool')
-
-        for i in range(1, len(offsets_cumulative)):
-            if offsets_cumulative[i-1] != offsets_cumulative[i]:
-                keep_index[i-1] = True
-
-        logging.info("Removed empty arrays")
-        return features[keep_index], truth[keep_index]
+        return ([SimpleArray(feature, offsets, name="Features")], [truth], [])
 
     def writeOutPrediction(
             self,
