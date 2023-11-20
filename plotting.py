@@ -47,10 +47,11 @@ class Extract:
             model_name="",
             read_hits=False,
             testing_root_files="./nntr_data/Raw/Testing.root",
-            predicted_dir="Predicted"):
+            predicted_file="Predicted/pred_Testing.djctd",
+            read_uncertainties=True):
 
         self.model_dir = model_dir+"/"
-        self.predicted_dir = predicted_dir
+        self.predicted_file = predicted_file
         self.model_name = model_name
         self.nn_raw_data = {}
         self.testing_root_files = testing_root_files
@@ -62,8 +63,10 @@ class Extract:
         self.ATLayerNum = np.NaN
         self.CalorimeterThickness = np.NaN
         self.ATCellSideLength = np.NaN
+        self.read_uncertainties = read_uncertainties
+        self.savefigdir = ""
 
-        if "Uncertainties" in self.nn_raw_data.keys():
+        if "Uncertainties" in self.nn_raw_data.keys() and self.read_uncertainties:
             self.uncertainties = self._nn_data(key="Uncertainties")
             for key in self.uncertainties.keys():
                 self.uncertainties[key] = np.exp(self.uncertainties[key])
@@ -107,7 +110,7 @@ class Extract:
                 f"{self.model_dir}/{self.model_name}\n" +
                 "Available models are:", os.listdir(self.model_dir))
         else:
-            with open(f"{self.model_dir}/{self.model_name}/{self.predicted_dir}/pred_Testing.djctd", "rb") as file:
+            with open(f"{self.model_dir}/{self.model_name}/{self.predicted_file}", "rb") as file:
                 self.nn_raw_data = pickle.load(file)
 
         return self._nn_find_physical_variables(self.nn_raw_data[key])
@@ -153,7 +156,10 @@ class Plot:
             plot_type="",
             obs=""):
         if not savefigdir:
-            savefigdir = f"{data.model_dir}/{data.model_name}/Plots/"
+            if data.savefigdir:
+                savefigdir = data.savefigdir
+            else:
+                savefigdir = f"{data.model_dir}/{data.model_name}/Plots/"
         os.makedirs(savefigdir, exist_ok=True)
         plt.savefig(f"{savefigdir}/{plot_type}_{obs}.png", dpi=600)
 
@@ -216,6 +222,7 @@ class Plot:
             label="True")
         return plot
 
+
     def df(data=Type[TOutput],
            mean=False,
            eventID=0):
@@ -250,6 +257,7 @@ class Plot:
                 df.loc[ob, (eventID, "Truth")] = truth[eventID, i]
 
         return df
+
 
     def tracks(data=Type[TOutput],
                eventID=0):
@@ -490,43 +498,212 @@ class FullTrackReco:
         return fig, plot
 
 
+# Plotting tools
+
+class PlottingWrapper:
+
+    def plot_add_info(ax: plt.Axes, detector_type="Idealized detector"):
+        ax.text(
+            0.02, 0.94,
+            "Beamdump",
+            transform=ax.transAxes,
+            fontsize=16,
+            fontweight="bold")
+        ax.text(
+            0.02, 0.8,
+            "Track Reconstruction 2023\n"
+            + f"({detector_type})\n"
+            + r"$10^6$"+" events, "+r"$E_0 = 1-2$"+" GeV",
+            transform=ax.transAxes,
+            fontsize=12)
+        
+
+    def plot_hits_per_events_histogram(data):
+        if data.model_name == "idealized_detector":
+            print("Skipped plotting hits per events histograms as the idealized detector version has constant"+
+                "hits per events")
+            pass
+        elif data.model_name == "normal_detector":
+            fig, ax = plt.subplots(1, 1, figsize=(8, 7))
+            x = data.hits["x"][data.hits["layerType"] == 0]
+            l = []
+            for i in range(len(x)):
+                l.append(len(x[i]))
+
+            ax.hist(l, bins=100)
+            ax.set_title("Normal detector - Hits per events")
+            ax.vlines(np.mean(l), 0, 400, color="darkred", label=f"Mean = {round(np.mean(l))}")
+            ax.set_xlabel("hits per event")
+            ax.set_ylabel("Counts / 100 events")
+            ax.legend("upper right")
+            plt.savefig(data.savefigdir+"events_histogram")
+            return ax
+        
+
+
+    def plot_p1(data):
+        xlim = (-5, 5)  # MeV
+        bins = np.linspace(xlim[0], xlim[1], 100)
+        fig, ax = plt.subplots(1, 1, figsize=(8, 7))
+        p = data.predicted["p1"]
+        t = data.truth["p1"]
+
+        ax.hist(
+            ((p[:, 0] - t[:, 0])/t[:, 0]),
+            bins=bins,
+            histtype="step",
+            label=r"$\Delta p_{1, x}$",
+            density=False)
+        ax.hist(
+            (p[:, 1] - t[:, 1])/t[:, 1],
+            bins=bins,
+            histtype="step",
+            label=r"$\Delta p_{1, y}$",
+            density=False)
+        ax.hist(
+            (p[:, 2] - t[:, 2])/t[:, 2],
+            bins=bins,
+            histtype="step",
+            label=r"$\Delta p_{1, z}$",
+            density=False)
+        PlottingWrapper.plot_add_info(ax)
+        ax.set_xlabel(r"$(p_1^{pred} - p_1^{true})/(p_1^{true})$", loc="right")
+        ax.set_ylabel(f"Events / ({np.round(bins[1]-bins[0], 2)} MeV)", loc="top")
+        ax.legend(loc="upper right")
+        ax.set_xlim(xlim)
+        ax.set_yscale("log")
+        plt.savefig(data.savefigdir+"residuals_p1")
+        return ax
+
+
+    def plot_v1(data):
+        xlim = (-500, 500)
+        bins = np.linspace(xlim[0], xlim[1], 100)
+        fig, ax = plt.subplots(1, 1, figsize=(8, 7))
+        obs = "v1"
+        density = True
+
+        ax.hist(
+            (data.predicted[obs][:, 2]*1E3 - data.truth[obs][:, 2]*1E3),
+            bins=bins,
+            histtype="step",
+            label=r"$\Delta V_{1, z}$",
+            density=density)
+
+        PlottingWrapper.plot_add_info(ax)
+        ax.set_xlabel(r"$V_1^{pred} - V_1^{true}$"+" [mm]", loc="right")
+        ax.set_ylabel(f"Events / ({np.round(bins[1]-bins[0], 0)} mm)", loc="top")
+        ax.legend(loc="upper right")
+        ax.set_xlim(xlim)
+        ax.set_yscale("linear")
+        plt.savefig(data.savefigdir+"residuals_v1")
+        return ax
+
+
+    def plot_v1_z(data):
+        fig, ax = plt.subplots(1, 1, figsize=(8, 7))
+        xlim = (-1.5E3, 0.1E3)
+        bins = np.linspace(xlim[0], xlim[1], 50)
+        ax.hist(data.predicted["v1"][:, 2]*1E3, bins=bins, histtype="step", label="Predicted")
+        ax.hist(data.truth["v1"][:, 2]*1E3, bins=bins, histtype="step", label="Truth")
+        ax.set_xlabel(r"$V_z$ [mm]", loc="right")
+        ax.set_ylabel(f"Events / ({np.round(bins[1]-bins[0], 0)} mm)", loc="top")
+        ax.set_title("Vertex Position along detector axis")
+        PlottingWrapper.plot_add_info(ax)
+        ax.legend(loc="upper right")
+        ax.set_ylim(0, 1600)
+        plt.savefig(data.savefigdir+"v1z")
+        return ax
+
+
+    def plot_v1_z_pred_vs_true(data):
+        t = data.truth["v1"][:, 2]*1E3
+        p = data.predicted["v1"][:, 2]*1E3
+
+        fig, ax = plt.subplots(1, 1, figsize=(8, 7))
+
+        h = ax.hist2d(t, p, bins=50, cmap="OrRd")
+        PlottingWrapper.plot_add_info(ax)
+        ax.set_xlim(-1100, -100)
+        ax.set_ylim(-1100, -100)
+        ax.set_xlabel(r"$V_{1, z}^{true}$ [mm]", loc="right")
+        ax.set_ylabel(r"$V_{1, z}^{pred}$ [mm]", loc="top")
+        fig.colorbar(h[3], ax=ax, label="Counts")
+        ax.axline(
+            (-1000, -1000),
+            (0, 0),
+            color="black",
+            linestyle="--",
+            label=r"$y=x$")
+        plt.savefig(data.savefigdir+"v1_z_pred_vs_true_hist2d")
+        return ax
+
+
+    def plot_tracks(data):
+        eventID = np.random.default_rng().choice(len(data.truth["p1"]))
+        fig, plot = Plot.tracks(
+            data,
+            eventID=eventID
+            )(
+            scale_hits_with_energy=False,
+            show_absorber=True,
+            axis="y"
+            )
+        plot.set_xlabel("z [mm]", loc="right")
+        plot.set_ylabel("y [mm]", loc="top")
+        PlottingWrapper.plot_add_info(plot)
+        #plot.legend(loc="lower left")
+        plot.set_xlim(-1500, 550)
+        plot.set_ylim(-140, 150)
+        plot.set_title("Detector sideview with two photon vertex")
+        fig.set_size_inches(8, 6)
+        plt.savefig(f"{data.savefigdir}/Tracks/event_{eventID}")
+        return plot
+
+
 if __name__ == "__main__":
-    model_name = sys.argv[1]
+    
+    detector_type = "idealized_detector"
+    model_name = "testing_no_uncertainties"
+    
+    
+    if detector_type == "idealized_detector":
+        data = Extract(
+            model_dir=f"./nntr_models/idealized_detector/garnet/",
+            model_name=model_name,
+            read_hits=False,
+            testing_root_files="./nntr_data/idealized_detector/Raw/Testing.root",
+            read_uncertainties=True)
 
-    read_hits = False
-    data = Extract(
-        model_dir="./nntr_models/idealized_detector",
-        model_name=model_name,
-        read_hits=read_hits,
-        testing_root_files="./nntr_data/idealized_detector/Raw/Testing.root")
+        with uproot.open("./nntr_data/idealized_detector/Raw/Testing.root") as file:
+            hits = {}
+            for key in ['layerType', 'x', 'y', 'z', 'E']:
+                hits[key] = file["Events"]["Output"]["fHits"][f"fHits.{key}"].array(library="ak")
+            hits["cellID"] = np.full(np.shape(hits["x"]), 0)
+            hits["layerID"] = np.repeat(np.repeat([np.arange(0, 51)], 2, axis=1), len(hits["x"]), axis=0)
 
-    Plot.histogram(
-        data=data,
-        obs="p1",
-        xlabel="Normalized Momentum [MeV]",
-        scalar_factor=1E3,
-        nbins=np.linspace(-2.5E3, 2.5E3, 100))
+        data.hits = hits
+        data.ATLayerNum = 50
+        data.ATCCellNumCols = 5
+        data.ATCCellNumRows = 5
+        data.ATCellSideLength = 40
+        data.CalorimeterThickness = 10
 
-    Plot.histogram(
-        data=data,
-        obs="v1",
-        xlabel="Vertex Position [mm]",
-        scalar_factor=1E3,
-        nbins=np.linspace(-1200, 100, 100))
+    elif detector_type == "normal_detector":
+        data = Extract(
+            model_dir=f"./nntr_models/{detector_type}/garnet",
+            model_name=model_name,
+            read_hits=True,
+            testing_root_files="./nntr_data/normal_detector/Raw/Testing.root")
 
-    Plot.scatter(
-        data=data,
-        obs="v1",
-        xlim=(-1, 1),
-        ylim=(-1, 1),
-        scalar_factor=1,
-        units="m")
 
-    Plot.scatter(
-        data,
-        "v1",
-        xlim=(-2, 0),
-        ylim=(-2, 2),
-        scalar_factor=1,
-        axis=("z", "x"),
-        units="m")
+    data.savefigdir = data.model_dir+data.model_name+"/Plots/"
+    os.makedirs(data.savefigdir+"/Tracks/", exist_ok=True)
+
+    PlottingWrapper.plot_hits_per_events_histogram(data)
+    PlottingWrapper.plot_p1(data)
+    PlottingWrapper.plot_v1(data)
+    PlottingWrapper.plot_v1_z(data)
+    PlottingWrapper.plot_v1_z_pred_vs_true(data)
+    PlottingWrapper.plot_tracks(data)
+

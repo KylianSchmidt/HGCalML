@@ -66,8 +66,9 @@ class TrainData_TrackReco(TrainData):
         data = {
             "Hits": features,
             "Truth": truth[0],
-            "Predicted": predicted[0][:, 0:12],
-            "Uncertainties": predicted[0][:, 12:24]}
+            "Predicted": predicted[0][:, 0:12]}
+        if len(predicted[0]) == 24:
+            data["Uncertainties"] = predicted[0][:, 12:24]
 
         with open(outfilename, "wb") as file:
             pickle.dump(data, file, pickle.HIGHEST_PROTOCOL)

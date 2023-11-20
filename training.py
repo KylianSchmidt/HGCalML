@@ -4,10 +4,11 @@ from Train.training_nntr import NNTR
 if __name__ == "__main__":
     """ Train the NNTR model from the Command Line
     """
+    # Training
     nntr = NNTR(
-        train_uncertainties=True,
+        train_uncertainties=False,
         detector_type="idealized_detector",
-        model_name="garnet/testing_with_uncertainties",
+        model_name="garnet/testing_no_uncertainties",
         #takeweights="./nntr_models/idealized_detector/garnet/test_with_uncertainties/Output/KERAS_check_best_model.h5"
     )
     print("Model name:", nntr.model_name)
@@ -26,6 +27,13 @@ if __name__ == "__main__":
         nepochs=5,
         batchsize=10000,
         additional_callbacks=cb)
+    
+    train.change_learning_rate(1e-5)
+    train.trainModel(
+        nepochs=20,
+        batchsize=10000,
+        additional_callbacks=cb)
 
+    # Prediction
     print("Training finished, starting prediction")
     nntr.predict()

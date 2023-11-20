@@ -109,7 +109,7 @@ class L2DistanceWithUncertainties(tf.keras.losses.Loss):
 
         For practical reasons, exp(sigma) is used to avoid divergences.
         """
-        p = tf.debugging.check_numerics(prediction, "Prediction has nans or infs")
+        p = prediction
         pred1 = tf.concat(
             [a for a in
              [p[:, 0:3],       # p1
@@ -126,6 +126,9 @@ class L2DistanceWithUncertainties(tf.keras.losses.Loss):
             axis=1)
 
         ln_sigma = p[:, 12:24]
+        tf.debugging.check_numerics(pred1, "Prediction 1 has nans or infs")
+        tf.debugging.check_numerics(pred2, "Prediction 2 has nans or infs")
+        tf.debugging.check_numerics(ln_sigma, "Sigma has nans or infs")
 
         # Loss function
         distance1 = tf.reduce_mean(
