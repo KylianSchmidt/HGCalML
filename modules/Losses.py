@@ -43,7 +43,7 @@ class L2Distance(tf.keras.losses.Loss):
         Latex formula:
         \mathcal{L} = \left( \Vec{t} - \Vec{p} \right)^2
         """
-        p = tf.debugging.check_numerics(prediction, "Prediction has nans or infs")
+        p = prediction
         pred1 = tf.concat(
             [a for a in
              [p[:, 0:3],       # p1
@@ -58,6 +58,9 @@ class L2Distance(tf.keras.losses.Loss):
               p[:, 0:3],       # p1
               p[:, 3:6]]],     # v1
             axis=1)
+
+        tf.debugging.check_numerics(pred1, "Prediction 1 has nans or infs")
+        tf.debugging.check_numerics(pred2, "Prediction 2 has nans or infs")
 
         # Loss function
         distance1 = tf.reduce_mean(

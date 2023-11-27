@@ -2,7 +2,6 @@ from DeepJetCore.TrainData import TrainData
 from DeepJetCore import SimpleArray
 import uproot
 import pickle
-import logging
 
 
 class TrainData_TrackReco(TrainData):

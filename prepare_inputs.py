@@ -6,34 +6,31 @@ import sys
 import itertools
         
 
-class ExtractFromRootFile:
+class PrepareInputs:
     def __init__(self, filename):
         self.filename = filename.rstrip('.root')
 
-        print("Find hits")
-        hits = self._find_hits()
-        print("Found hits")
-        truth, mean, std = self._find_truth()
-        print("Found truth")
-        offsets = self._find_offsets(hits)
-
-        all_features = {"hits": hits, "truth": truth, "offsets": offsets, "mean": mean, "std": std}
+        hits, hits_normalized, hits_mean, hits_std = self._find_hits()
+        truth_normalized, truth_mean, truth_std = self._find_truth()
+        offsets = self.offsets
+        offsets_cumsum = np.append(0, np.cumsum(offsets))
 
         with uproot.recreate(f"{self.filename}_preprocessed.root") as file:
-            file["Hits"] = hits
-            file["Truth"] = truth
-            file["Offsets"] = offsets
-            file["TruthMean"] = mean
-            file["TruthStdDeviation"] = std
+            file["Hits"] = {"hits": hits, "hits_normalized": hits_normalized}
+            file["Hits_offsets_cumsum"] = {"offsets_cumsum": offsets_cumsum}
+            file["Hits_offsets"] = {"offsets": offsets}
+            file["Hits_parameters"] = {"hits_mean": hits_mean, "hits_std": hits_std}
+            file["Truth"] = {"truth_normalized": truth_normalized}
+            file["Truth_parameters"] = {"truth_mean": truth_mean, "truth_std": truth_std}
 
     def _extract_to_array(self, key) -> ak.Array:
         """ This method extracts the events and hits for a given key in the root
         tree
         """
         with uproot.open(self.filename+".root") as data:
-            return data[key].array(library="ak")[:100]
+            return data[key].array(library="ak")
 
-    def _find_hits(self) -> pd.DataFrame:
+    def _find_hits(self) -> np.ndarray:
         keys = ["layerType", "cellID", "x", "y", "z", "E"]
         prefix = "Events/Output/fHits/fHits."
         raw_data_dict = {}
@@ -49,13 +46,10 @@ class ExtractFromRootFile:
 
         print("[2/3] Convert to DataFrame and sum over same cellIDs (will take approx. " +
             f"{0.7/100*len(raw_data_dict['layerType']):.0f} seconds)")
-        print("DEBUG 0", len(raw_arr[0]))
+        
         offsets = ak.count(raw_arr, axis=1)[:, 0]
-        print("DEBUG 1")
         i_0 = list(np.repeat(np.arange(len(offsets)), offsets))
-        print("DEBUG 2")
         i_1 = list(itertools.chain.from_iterable([(np.arange(i)) for i in ak.to_list(offsets)]))
-        print("DEBUG 3")
         nindex = pd.MultiIndex.from_arrays(arrays=[i_0, i_1], names=["event", "hit"])
         df_original = pd.DataFrame(
             ak.flatten(raw_arr),
@@ -64,30 +58,36 @@ class ExtractFromRootFile:
 
         df_calo = df_original[df_original["layerType"] == 2]
         
-        df_calo_grouped = df_calo.groupby(["entry", "cellID"])[["layerType", "x", "y", "z"]].first()
-        df_calo_grouped["E"] = df_calo.groupby(["entry", "cellID"])["E"].sum()
+        df_calo_grouped = df_calo.groupby(["event", "cellID"])[["layerType", "x", "y", "z"]].first()
+        df_calo_grouped["E"] = df_calo.groupby(["event", "cellID"])["E"].sum()
 
         print("[3/3] Concatenate DataFrames")
         df = pd.concat([df_original[df_original["layerType"] == 1], df_calo_grouped])
-        print(df["layerType"])
-        return df
+        self.offsets = self._find_offsets(df)
+
+        hits = np.delete(df.to_numpy(), 1, axis=1)
+        mean = np.mean(hits, axis=0)+1E-10
+        std = np.std(hits, axis=0)+1E-10
+        hits_normalized = (hits-mean)/std
+
+        return hits, hits_normalized, mean, std
 
     def _find_truth(self) -> np.ndarray:
         prefix = "Events/Output/fParticles/fParticles."
         keys = ["mcPx", "mcPy", "mcPz", "decayX", "decayY", "decayZ"]
-        truth, mean, std = {}, [], []
+        truth, mean, std = [], [], []
 
         for key in keys:
-            truth[key] = self._extract_to_array(prefix+key)[..., np.newaxis]
-            mean = np.append(mean, np.mean(ak.to_list(truth[key]), axis=0))
-            std = np.append(std, np.std(ak.to_list(truth[key]), axis=0))
+            truth_single = self._extract_to_array(prefix+key)[..., np.newaxis]
+            mean = np.append(mean, np.mean(ak.to_list(truth_single), axis=0))
+            std = np.append(std, np.std(ak.to_list(truth_single), axis=0))
+            truth.append(truth_single)
 
         return truth, mean, std
 
     def _find_offsets(self, df) -> np.ndarray:
-        offsets = df.reset_index(level=1).index.value_counts().sort_index().to_numpy()
-        return  np.cumsum(offsets).astype(int)
+        return df.reset_index(level=1).index.value_counts().sort_index().to_numpy()
 
 if __name__ == "__main__":
     filename = sys.argv[1]
-    ExtractFromRootFile(filename)
+    PrepareInputs(filename)
