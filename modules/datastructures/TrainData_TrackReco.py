@@ -1,13 +1,8 @@
 from DeepJetCore.TrainData import TrainData
 from DeepJetCore import SimpleArray
-import numpy as np
 import uproot
-import awkward as ak
-import pandas as pd
 import pickle
 import logging
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class TrainData_TrackReco(TrainData):
@@ -17,7 +12,10 @@ class TrainData_TrackReco(TrainData):
             "simulation to Awkward and Numpy arrays"
 
     def convertFromSourceFile(self, filename, weightobjects, istraining):
-        """ Construct the feature, truth (and weightobejects) from a root file
+        """ Construct the feature, truth from a root file
+
+        Relies on the structure provided by the ExtractFromRootFile class
+
         The data from the geant4 root files are jagged arrays of shape
 
             Properties x hits x eventNum
@@ -29,24 +27,27 @@ class TrainData_TrackReco(TrainData):
             0   1   2   3   4   5   6   7   8   9   10  11
            [px1 py1 pz1 vx1 vy1 vz1 px2 py2 pz2 vx2 vy2 vz2]
         """
-        self.filename = filename
 
-        with open(filename) as file:
-            data = pickle.load(file, "b")
-            feature = data["hits"]
-            truth = data["truth"]
-            offsets = data["offsets"]
-        
-        truth = truth.astype(
+        with uproot.open(filename) as file:
+            hits_normalized = file["Hits"]["hits_normalized"].arrays(library="np")[
+                "hits_normalized"]
+            offsets = file["Hits_offsets_cumsum"]["offsets_cumsum"].arrays(library="np")[
+                "offsets_cumsum"]
+            truth_normalized = file["Truth"]["truth_normalized"].arrays(library="np")[
+                "truth_normalized"]
+
+        truth = truth_normalized.astype(
             dtype='float32',
             order='C',
             casting="same_kind")
-        
-        feature = feature.astype(
+
+        feature = hits_normalized.astype(
             dtype='float32',
             order='C',
             casting="same_kind")
-        
+
+        assert offsets[0] == 0
+
         return ([SimpleArray(feature, offsets, name="Features")], [truth], [])
 
     def writeOutPrediction(
