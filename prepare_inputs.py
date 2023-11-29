@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 class PrepareInputs:
     def __init__(self, filename):
         self.filename = filename.rstrip('.root')
-        
+
         # Truth
         truth_array = self._find_truth()
 
@@ -41,11 +41,10 @@ class PrepareInputs:
         raw_array = self._find_hits()
 
         print("[2/3] Convert to DataFrame and sum over same cellIDs (will take approx. " +
-            f"{0.7/100*len(raw_array[0]):.0f} seconds)")
+              f"{0.7/100*len(raw_array[0]):.0f} seconds)")
 
         offsets = ak.count(raw_array, axis=1)[:, 0]
         hits_flattened = np.array(ak.to_list(ak.flatten(raw_array)))
-        print("Hits flattened: ", len(hits_flattened))
 
         # Create dataFrame (it is faster to create the pd.MultiIndex by hand than using
         # ak.to_dafaframe)
@@ -55,19 +54,20 @@ class PrepareInputs:
             [(np.arange(i)) for i in ak.to_list(offsets)]))
         nindex = pd.MultiIndex.from_arrays(
             arrays=[i_0, i_1], names=["event", "hit"])
-        values = np.concatenate([hits_flattened, truth_points_repeated], axis=1)
-        print("Values: ", values.shape)
-        print("Values[0]: ", values[0])
-        truth_keys = ["A1x", "A1y", "A1z", "B1x", "B1y", "B1z",
-                "A2x", "A2y", "A2z", "B2x", "B2y", "B2z",
-                "V1x", "V1y", "V1z", "V2x", "V2y", "V2z"]
+
+        values = np.concatenate(
+            [hits_flattened, truth_points_repeated], axis=1)
+        truth_keys = [
+            "A1x", "A1y", "A1z", "B1x", "B1y", "B1z",
+            "A2x", "A2y", "A2z", "B2x", "B2y", "B2z",
+            "V1x", "V1y", "V1z", "V2x", "V2y", "V2z"]
+
         df_original = pd.DataFrame(
             values,
             columns=[
                 "layerType", "cellID", "x", "y", "z", "E",
                 *truth_keys],
             index=nindex)
-        print("DataFrame: ", df_original)
 
         # Sum over same cellIDs in the calorimeter
         df_calo = df_original[df_original["layerType"] == 2]
@@ -75,31 +75,28 @@ class PrepareInputs:
             ["layerType", "x", "y", "z", *truth_keys]].first()
         df_calo_grouped["E"] = df_calo.groupby(["event", "cellID"])["E"].sum()
 
-        self.offsets_for_truth_empty_events = ak.to_numpy(offsets)
-
         print("[3/3] Concatenate DataFrames")
         df = pd.concat(
             [df_original[df_original["layerType"] == 1], df_calo_grouped])
         self.offsets = self._find_offsets(df)
 
-        # Remove cellID as an entry and normalize hits
-        hits = np.delete(df.to_numpy(), 1, axis=1)
-        mean = np.mean(hits, axis=0)+1E-10
-        std = np.std(hits, axis=0)+1E-10
-        hits_normalized = (hits-mean)/std
-        print(df)
-        print(hits.shape)
+        # Remove cellID as an entry and normalize features
+        features = np.delete(df.to_numpy(), 1, axis=1)
+        mean = np.mean(features, axis=0)+1E-10
+        std = np.std(features, axis=0)+1E-10
+        features_normalized = (features-mean)/std
+        offsets_cumsum = np.append(0, np.cumsum(self.offsets))
 
         # Write to file
-        offsets_cumsum = np.append(0, np.cumsum(offsets))
-
-        # with uproot.recreate(f"{self.filename}_preprocessed.root") as file:
-        #     file["Hits"] = {"hits": hits, "hits_normalized": hits_normalized}
-        #     file["Hits_offsets_cumsum"] = {"offsets_cumsum": offsets_cumsum}
-        #     file["Hits_offsets"] = {"offsets": offsets}
-        #     file["Hits_parameters"] = {"hits_mean": hits_mean, "hits_std": hits_std}
-        #     file["Truth"] = {"truth_normalized": truth_normalized}
-        #     file["Truth_parameters"] = {"truth_mean": truth_mean, "truth_std": truth_std}
+        with uproot.recreate(f"{self.filename}_preprocessed.root") as file:
+            file["Hits"] = {"hits_normalized": features_normalized[:, 0:5]}
+            file["Hits_offsets_cumsum"] = {"offsets_cumsum": offsets_cumsum}
+            file["Hits_offsets"] = {"offsets": self.offsets}
+            file["Hits_parameters"] = {
+                "hits_mean": mean[0:5], "hits_std": std[0:5]}
+            file["Truth"] = {"truth_normalized": features_normalized[:, 5:24]}
+            file["Truth_parameters"] = {
+                "truth_mean": mean[5:24], "truth_std": std[5:24]}
 
     def _find_hits(self):
         keys = ["layerType", "cellID", "x", "y", "z", "E"]
@@ -108,7 +105,8 @@ class PrepareInputs:
 
         print("[1/3] Extract from root file")
         for keys in keys:
-            raw_array.append(self._extract_to_array(prefix+keys)[..., np.newaxis])
+            raw_array.append(self._extract_to_array(
+                prefix+keys)[..., np.newaxis])
         raw_array = ak.concatenate(raw_array, axis=-1)
         return raw_array
 
@@ -121,7 +119,8 @@ class PrepareInputs:
         truth_array = []
 
         for key in keys:
-            truth_array.append(self._extract_to_array(prefix+key)[..., np.newaxis])
+            truth_array.append(self._extract_to_array(
+                prefix+key)[..., np.newaxis])
         truth_array = ak.concatenate(truth_array, axis=-1)
         truth_array = ak.flatten(truth_array, axis=-1)
         truth_array = np.array(truth_array.tolist())
@@ -139,7 +138,7 @@ class PrepareInputs:
 
     def _find_offsets(self, df: pd.DataFrame) -> np.ndarray:
         return df.reset_index(level=1).index.value_counts().sort_index().to_numpy()
-    
+
     def plot(self, truth_array, truth_points, raw_array):
         # PLOTS
         # -----------------------
@@ -155,8 +154,10 @@ class PrepareInputs:
 
         tracker = raw_array[0][raw_array[0][:, 0] == 1]
         calo = raw_array[0][raw_array[0][:, 0] == 2]
-        plt.scatter(tracker[:, 4], tracker[:, 2], s=5, alpha=0.5, label="Tracker")
-        plt.scatter(calo[:, 4], calo[:, 2], s=5, alpha=0.5, label="Calorimeter")
+        plt.scatter(tracker[:, 4], tracker[:, 2],
+                    s=5, alpha=0.5, label="Tracker")
+        plt.scatter(calo[:, 4], calo[:, 2], s=5,
+                    alpha=0.5, label="Calorimeter")
         plt.plot(
             [v1[2], p1[2]],
             p1[0]/p1[2]*([v1[2], p1[2]] - v1[2]),
