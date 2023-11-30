@@ -11,9 +11,26 @@ class PrepareInputs:
     def __init__(self, filename):
         self.filename = filename.rstrip('.root')
 
-        # Truth
+        # Extract hits and truth from root file
+        raw_array = self._find_hits()
         truth_array = self._find_truth()
 
+        offsets_with_empty_events = ak.count(raw_array, axis=1)[:, 0]
+        hits_flattened = np.array(ak.to_list(ak.flatten(raw_array)))
+
+        # Remove empty events
+        offsets_cumsum_with_empty_events = np.cumsum(offsets_with_empty_events)
+        keep_index = np.zeros(len(offsets_cumsum_with_empty_events)-1, dtype='bool')
+
+        for i in range(1, len(offsets_cumsum_with_empty_events)):
+            if offsets_cumsum_with_empty_events[i-1] != offsets_cumsum_with_empty_events[i]:
+                keep_index[i-1] = True
+
+        raw_array = raw_array[keep_index]
+        truth_array = truth_array[keep_index]
+        truth_array = np.array(truth_array.tolist())
+
+        # Convert momentum direction to aligned points
         def line(truth, particle_num, z=0):
             if particle_num == 1:
                 p = truth[:, 0:3]
@@ -34,69 +51,65 @@ class PrepareInputs:
         V2 = truth_array[:, 9:12]
 
         truth_points = np.concatenate([A1, B1, A2, B2, V1, V2], axis=1)
-        print("Truth points:    ", truth_points.shape)
-        print("Truth points[0]: ", truth_points[0])
-
-        # Hits
-        raw_array = self._find_hits()
-
-        print("[2/3] Convert to DataFrame and sum over same cellIDs (will take approx. " +
-              f"{0.7/100*len(raw_array[0]):.0f} seconds)")
-
-        offsets = ak.count(raw_array, axis=1)[:, 0]
-        hits_flattened = np.array(ak.to_list(ak.flatten(raw_array)))
 
         # Create dataFrame (it is faster to create the pd.MultiIndex by hand than using
         # ak.to_dafaframe)
-        truth_points_repeated = list(np.repeat(truth_points, offsets, axis=0))
-        i_0 = list(np.repeat(np.arange(len(offsets)), offsets))
+        print("[2/3] Convert to DataFrame and sum over same cellIDs")
+        i_0 = list(np.repeat(np.arange(len(offsets_with_empty_events)), offsets_with_empty_events))
         i_1 = list(itertools.chain.from_iterable(
-            [(np.arange(i)) for i in ak.to_list(offsets)]))
-        nindex = pd.MultiIndex.from_arrays(
-            arrays=[i_0, i_1], names=["event", "hit"])
-
-        values = np.concatenate(
-            [hits_flattened, truth_points_repeated], axis=1)
-        truth_keys = [
-            "A1x", "A1y", "A1z", "B1x", "B1y", "B1z",
-            "A2x", "A2y", "A2z", "B2x", "B2y", "B2z",
-            "V1x", "V1y", "V1z", "V2x", "V2y", "V2z"]
+            [(np.arange(i)) for i in ak.to_list(offsets_with_empty_events)]))
+        nindex = pd.MultiIndex.from_arrays(arrays=[i_0, i_1], names=["event", "hit"])
 
         df_original = pd.DataFrame(
-            values,
-            columns=[
-                "layerType", "cellID", "x", "y", "z", "E",
-                *truth_keys],
+            hits_flattened,
+            columns=["layerType", "cellID", "x", "y", "z", "E"],
             index=nindex)
 
         # Sum over same cellIDs in the calorimeter
         df_calo = df_original[df_original["layerType"] == 2]
-        df_calo_grouped = df_calo.groupby(["event", "cellID"])[
-            ["layerType", "x", "y", "z", *truth_keys]].first()
-        df_calo_grouped["E"] = df_calo.groupby(["event", "cellID"])["E"].sum()
+        df_calo_grouped = df_calo.groupby(["event", "cellID"], dropna=False)[
+            ["layerType", "x", "y", "z"]].first()
+        df_calo_grouped["E"] = df_calo.groupby(["event", "cellID"], dropna=False)["E"].sum()
 
+        # Remove events with only absorber hits
         print("[3/3] Concatenate DataFrames")
-        df = pd.concat(
-            [df_original[df_original["layerType"] == 1], df_calo_grouped])
-        self.offsets = self._find_offsets(df)
+        df = pd.concat([df_original[df_original["layerType"] != 2], df_calo_grouped])
+        mask = df["layerType"] != 0
+        df = df.where(mask).dropna()
+        offsets = self._find_offsets(df)
+        offsets_cumsum = np.append(0, np.cumsum(offsets))
 
-        # Remove cellID as an entry and normalize features
+        # Mask events with only absorber hits and normalize truth
+        mask_truth = mask.groupby(["event"]).sum() != 0
+        truth_points = truth_points[mask_truth]
+        truth_mean = np.mean(truth_points, axis=0)+1E-10
+        truth_std = np.std(truth_points, axis=0)+1E-10
+        truth_points_normalized = (truth_points-truth_mean)/truth_std
+
+        # Remove cellID as an entry and normalize hits
         features = np.delete(df.to_numpy(), 1, axis=1)
         mean = np.mean(features, axis=0)+1E-10
         std = np.std(features, axis=0)+1E-10
-        features_normalized = (features-mean)/std
-        offsets_cumsum = np.append(0, np.cumsum(self.offsets))
+        hits_normalized = (features-mean)/std
+
+        # Check that everything is correct
+        print("Length of hits with absorber and individual calo:", len(hits_flattened))
+        print("Shape of hits_normalized:", hits_normalized.shape, "First entry:\n", hits_normalized[0])
+        print("Shape of truth_normalized:", truth_points_normalized.shape, "First entry:\n", truth_points_normalized[0])
+        print("Shape of offsets_cumsum:\n", offsets_cumsum.shape)
+        print("Shape of hits mean:\n", mean)
+        print("Shape of hits std:\n", std)
+        print("Shape of truth_mean:\n", truth_mean)
+        print("Shape of truth_std:\n", truth_std)
 
         # Write to file
         with uproot.recreate(f"{self.filename}_preprocessed.root") as file:
-            file["Hits"] = {"hits_normalized": features_normalized[:, 0:5]}
-            file["Hits_offsets_cumsum"] = {"offsets_cumsum": offsets_cumsum}
-            file["Hits_offsets"] = {"offsets": self.offsets}
-            file["Hits_parameters"] = {
-                "hits_mean": mean[0:5], "hits_std": std[0:5]}
-            file["Truth"] = {"truth_normalized": features_normalized[:, 5:24]}
-            file["Truth_parameters"] = {
-                "truth_mean": mean[5:24], "truth_std": std[5:24]}
+            file["Hits"] = {"hits_normalized": hits_normalized}
+            file["Hits_row_splits"] = {"rowsplits": offsets_cumsum}
+            file["Hits_offsets"] = {"offsets": offsets}
+            file["Hits_parameters"] = {"hits_mean": mean, "hits_std": std}
+            file["Truth"] = {"truth_normalized": hits_normalized}
+            file["Truth_parameters"] = {"truth_mean": truth_mean, "truth_std": truth_std}
 
     def _find_hits(self):
         keys = ["layerType", "cellID", "x", "y", "z", "E"]
@@ -123,7 +136,6 @@ class PrepareInputs:
                 prefix+key)[..., np.newaxis])
         truth_array = ak.concatenate(truth_array, axis=-1)
         truth_array = ak.flatten(truth_array, axis=-1)
-        truth_array = np.array(truth_array.tolist())
         return truth_array
 
     def _extract_to_array(self, key) -> ak.Array:
@@ -134,7 +146,7 @@ class PrepareInputs:
         (hits x [layerType, x, y, z, E])
         """
         with uproot.open(self.filename+".root") as data:
-            return data[key].array(library="ak")[1000:2000]
+            return data[key].array(library="ak")[:1000]
 
     def _find_offsets(self, df: pd.DataFrame) -> np.ndarray:
         return df.reset_index(level=1).index.value_counts().sort_index().to_numpy()
