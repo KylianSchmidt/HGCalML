@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-class TrainData_TrackReco(TrainData):
+class TrainData_TrackRecoSingleCaloHits(TrainData):
     def __init__(self):
         TrainData.__init__(self)
         self.description = "This Class converts Root files from a Geant4 " + \

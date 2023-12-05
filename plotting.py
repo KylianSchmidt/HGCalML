@@ -4,8 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import uproot
-import sys
+from icecream import ic
 import os
+import awkward as ak
 import logging
 from datetime import datetime
 from typing import Type, TypeVar, Literal
@@ -45,7 +46,6 @@ class Extract:
             self,
             model_dir="./nntr_models",
             model_name="",
-            read_hits=False,
             testing_root_files="./nntr_data/Raw/Testing.root",
             predicted_file="Predicted/pred_Testing.djctd",
             read_uncertainties=True):
@@ -53,57 +53,44 @@ class Extract:
         self.model_dir = model_dir+"/"
         self.predicted_file = predicted_file
         self.model_name = model_name
-        self.nn_raw_data = {}
         self.testing_root_files = testing_root_files
-        self.predicted = self._nn_data(key="Predicted")
-        self.truth = self._nn_data(key="Truth")
         self.hits = []
-        self.ATCCellNumCols = np.NaN
-        self.ATCCellNumRows = np.NaN
-        self.ATLayerNum = np.NaN
-        self.CalorimeterThickness = np.NaN
-        self.ATCellSideLength = np.NaN
+        self.ATCCellNumCols = 5
+        self.ATCCellNumRows = 5
+        self.ATLayerNum = 5
+        self.CalorimeterThickness = 250
+        self.ATCellSideLength = 40
         self.read_uncertainties = read_uncertainties
         self.savefigdir = ""
 
-        if "Uncertainties" in self.nn_raw_data.keys() and self.read_uncertainties:
-            self.uncertainties = self._nn_data(key="Uncertainties")
-            for key in self.uncertainties.keys():
-                self.uncertainties[key] = np.exp(self.uncertainties[key])
-                logger.info("Caution: Uncertainties were rescaled to exp(sigma)")
-        else:
-            self.uncertainties = []
+        # Read hits
+        with uproot.open(self.testing_root_files) as file:
+            self.hits_normalized = file["Hits"]["hits_normalized"].arrays()["hits_normalized"]
+            self.offsets_cumsum = file["Hits_row_splits"].arrays()["rowsplits"]
+            self.offsets = file["Hits_offsets"].arrays()["offsets"]
+            self.hits_mean = file["Hits_parameters"]["hits_mean"].arrays()["hits_mean"]
+            self.hits_std = file["Hits_parameters"]["hits_std"].arrays()["hits_std"]
+            self.truth_normalized = file["Truth"]["truth_normalized"].arrays()["truth_normalized"]
+            self.truth_mean = file["Truth_parameters"]["truth_mean"].arrays()["truth_mean"]
+            self.truth_std = file["Truth_parameters"]["truth_std"].arrays()["truth_std"]
 
-        if read_hits:
-            self._read_hits()
+        if len(self.hits_normalized[0]) == 36:
+            self.hits_normalized = self.hits_normalized[:, 0:18]
+            self.uncertainties = self.hits_normalized[:, 18:36]
+            self.read_uncertainties = False
 
-    def _undo_normalization(self, array: np.array):
-        """ Undo the normalization from the preprocessing step.
-        The ordering here is the same as in 'normalize_inputs.py' which
-        is different than in the truth array of the network
-        """
-        # NOTE: Only temporary as this will be handled by conversion
-        # in DJC
-        #
-        # Update: no it wont, blame it on DJC
-        logger.info("Undo normalization, mean was", np.mean(array, axis=0))
+        self.hits_flattened = self.hits_normalized*self.hits_std+self.hits_mean
+        self.hits = ak.unflatten(self.hits_flattened, self.offsets)
+        self.truth_array = self.truth_normalized*self.truth_std+self.truth_mean
+        self.truth = {}
+        self.truth["A1"] = self.truth_array[:, 0:3]
+        self.truth["B1"] = self.truth_array[:, 3:6]
+        self.truth["A2"] = self.truth_array[:, 6:9]
+        self.truth["B2"] = self.truth_array[:, 9:12]
+        self.truth["V1"] = self.truth_array[:, 12:15]
+        self.truth["V2"] = self.truth_array[:, 15:18]
 
-        with open(self.testing_root_files.rstrip(".root")+"_normalization.pkl", "rb") as file:
-            data = pickle.load(file)
-            std, mean = np.array([]), np.array([])
-            keys = ["mcPx", "mcPy", "mcPz", "decayX", "decayY", "decayZ"]
-
-            for i in [0, 1]:
-                for key in keys:
-                    mean = np.append(mean, data["mean"][key][i, 0])
-                    std = np.append(std, data["std"][key][i, 0])
-
-        original_array = array*(std + 1E-10) + mean
-        logger.info("Mean is now", np.mean(original_array))
-
-        return original_array
-
-    def _nn_data(self, key="Truth"):
+        # Read prediction and truth
         if self.model_name not in os.listdir(self.model_dir):
             logger.error(
                 "No such model could be found at:\n" +
@@ -111,38 +98,27 @@ class Extract:
                 "Available models are:", os.listdir(self.model_dir))
         else:
             with open(f"{self.model_dir}/{self.model_name}/{self.predicted_file}", "rb") as file:
-                self.nn_raw_data = pickle.load(file)
+                predicted = pickle.load(file)["Predicted"][:, 0:18]*self.truth_std+self.truth_mean
 
-        return self._nn_find_physical_variables(self.nn_raw_data[key])
+            self.predicted = {}
+            self.predicted["A1"] = predicted[:, 0:3]
+            self.predicted["B1"] = predicted[:, 3:6]
+            self.predicted["A2"] = predicted[:, 6:9]
+            self.predicted["B2"] = predicted[:, 9:12]
+            self.predicted["V1"] = predicted[:, 12:15]
+            self.predicted["V2"] = predicted[:, 15:18]
 
-    def _nn_find_physical_variables(self, array: np.array):
-        array = self._undo_normalization(array)
+        # Read uncertainties
+        if self.read_uncertainties:
+            try:
+                with open(f"{self.model_dir}/{self.model_name}/{self.predicted_file}", "rb") as file:
+                    self.uncertainties = pickle.load(file)["Uncertainties"]*self.truth_std+self.truth_mean
 
-        if np.shape(array)[1] == 12:
-            return {
-                "p1": array[:, 0:3],
-                "v1": array[:, 3:6],
-                "p2": array[:, 6:9],
-                "v2": array[:, 9:12]}
-        else:
-            logger.error(f"Wrong shape of array, is {np.shape(array)}")
-
-    def _read_hits(self):
-        filename = self.testing_root_files
-
-        with uproot.open(filename) as event:
-            keys = ["layerType", "layerID", "cellID", "E", "x", "y", "z"]
-            self.hits = {}
-            for name in keys:
-                self.hits[name] = event["Events"]["Output"]["fHits"][f"fHits.{name}"].array(library="ak")
-
-            self.ATCCellNumCols = event["Events"]["ParametersNumericals"]["fATCCellNumCols"].array(library="np")[0]
-            self.ATCCellNumRows = event["Events"]["ParametersNumericals"]["fATCCellNumRows"].array(library="np")[0]
-            self.ATLayerNum = event["Events"]["ParametersNumericals"]["fNumberATLayers"].array(library="np")[0]
-            self.CalorimeterThickness = event["Events"]["ParametersNumericals"]["fCalorimeterThickness"].array(library="np")[0]
-            self.ATCellSideLength = event["Events"]["ParametersNumericals"]["fAbsorberSideLength"].array(library="np")[0]
-
-        return None
+                for key in self.uncertainties.keys():
+                    self.uncertainties[key] = np.exp(self.uncertainties[key])
+                    logger.info("Caution: Uncertainties were rescaled to exp(sigma)")
+            except:
+                KeyError("Uncertainties not found in file")
 
 
 TOutput = TypeVar("TOutput", bound=Extract)
@@ -162,27 +138,6 @@ class Plot:
                 savefigdir = f"{data.model_dir}/{data.model_name}/Plots/"
         os.makedirs(savefigdir, exist_ok=True)
         plt.savefig(f"{savefigdir}/{plot_type}_{obs}.png", dpi=600)
-
-    def gaussian_uncertainties(
-            ax: plt.axis,
-            data: Type[TOutput],
-            feature,
-            errors):
-        return 0
-        mean = np.mean(feature, axis=0)
-        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-
-        h = np.histogram(feature, bins=nbins)
-        height = h[0][h[0].argmax()]
-        ax.scatter(x=mean*scalar_factor,
-                    y=height,
-                    color=colors[0])
-        ax.errorbar(x=mean*scalar_factor,
-                    y=height,
-                    color=colors[0],
-                    xerr=errors*scalar_factor,
-                    label="Predicted Error",
-                    ls="")
 
     def scatter(
             data=Type[TOutput],
@@ -222,7 +177,6 @@ class Plot:
             label="True")
         return plot
 
-
     def df(data=Type[TOutput],
            mean=False,
            eventID=0):
@@ -259,21 +213,6 @@ class Plot:
         return df
 
 
-    def tracks(data=Type[TOutput],
-               eventID=0):
-        """ Method which calls the FullTrackReco class and plots the hits as
-        well as the true and predicted trajectory of the photons based on the
-        output from the network
-        """
-        if not data.hits:
-            logger.error(
-                "Error: Root files have not been extracted yet. Use Extract.read_hits() or set " +
-                "'read_hits' to True when using Extract().")
-
-        ftr = FullTrackReco(data, eventID)
-        return ftr.plot_mpl
-
-
 class FullTrackReco:
     def __init__(
             self,
@@ -281,8 +220,9 @@ class FullTrackReco:
             eventID=0,
             particle="photon",
             zlim=-10):
-        self.nn_raw_data = []
         self.particle = particle
+        self.predicted = {}
+        self.truth = {}
         self.zlim = zlim
         self.eventID = eventID
         self.data = data
@@ -292,42 +232,33 @@ class FullTrackReco:
         self.ATCellSideLength = data.ATCellSideLength
         self.CalorimeterThickness = data.CalorimeterThickness
 
-        if self.ATLayerNum <= 5:
-            self.colors = ["purple", "blue", "darkred", "red", "darkorange"]
-        else:
-            self.colors = ["darkblue"]*int(self.ATLayerNum)
+        if len(self.data.hits) != 0:
+            self.df = pd.DataFrame(
+                self.data.hits[eventID],
+                columns=["layerType", "x", "y", "z", "E"])
 
-        if self.data.hits:
-            hits_event = {}
-            for name in self.data.hits.keys():
-                hits_event[name] = self.data.hits[name][eventID]
-            self.df = pd.DataFrame(hits_event)
-
-    def tracker_hits(self, layerID):
-        """ Find the tracker hits for each layer
-        """
-        tracker = self.df[self.df["layerType"] == 1]
-        tracker_layer = tracker[tracker["layerID"] == layerID]
-        return tracker_layer
+        for key in self.data.predicted.keys():
+            self.predicted[key] = self.data.predicted[key][eventID]
+            self.truth[key] = self.data.truth[key][eventID]
 
     def plot_calo(self):
         """ Heatmap of the Calorimeter energy deposition with tracker hits"""
-        self.fig = plt.figure(figsize=(6, 5))
-        self.ax = self.fig.subplots()
+        fig, ax = plt.subplots(figsize=(6, 6))
 
         # Calo hits
         calo = self.df[self.df["layerType"] == 2]
-        cg = np.zeros(self.ATCCellNumRows*self.ATCCellNumCols)
-        cg[calo["cellID"]] = 1e3*calo["E"]  # Are in GeV in the root file
-        calo_colormesh = np.reshape(
-            cg, (self.ATCCellNumRows, self.ATCCellNumCols))
+        ic(calo["E"].to_numpy())
+        calo_colormesh = np.zeros((self.ATCCellNumCols, self.ATCCellNumRows))
+        ic(calo_colormesh)
+        coord = calo[["x", "y"]].to_numpy().astype(int)
+
         width = self.ATCellSideLength*np.arange(
             -np.floor(self.ATCCellNumCols/2),
             +np.ceil(self.ATCCellNumCols/2))
         height = self.ATCellSideLength*np.arange(
             -np.floor(self.ATCCellNumRows/2),
             +np.ceil(self.ATCCellNumRows/2))
-        im = self.ax.pcolormesh(
+        im = ax.pcolormesh(
             width,
             height,
             calo_colormesh,
@@ -341,36 +272,29 @@ class FullTrackReco:
             label="Calorimeter Energy Deposition [MeV]")
 
         # Tracker hits
-        for layerID in range(0, self.ATLayerNum):
-            trh = self.tracker_hits(layerID)
 
-            if self.ATLayerNum <= 5:
-                label = f"Tracking Layer {layerID}"
-            else:
-                label = None
-
-            self.ax.scatter(
-                x=trh["x"].values,
-                y=trh["y"].values,
-                marker=".",
-                c=self.colors[layerID],
-                label=label)
+        ax.scatter(
+            x=self.df[self.df["layerType" == 1]]["x"].values,
+            y=self.df[self.df["layerType" == 1]]["y"].values,
+            marker=".",
+            label="Tracker")
 
         self.energy = 1e3*np.sum(calo["E"])
-        t = self.ax.text(
+        t = ax.text(
             x=0.50,
             y=0.88,
             s=f"{self.particle}, {self.ATLayerNum} AT layers",
-            transform=self.ax.transAxes)
+            transform=ax.transAxes)
         t.set_bbox(dict(facecolor="white", alpha=0.5, edgecolor="k"))
 
-        self.ax.set_xlim(width[0]-20, width[-1]+20)
-        self.ax.set_ylim(height[0]-20, height[-1]+20)
-        self.ax.set_xlabel("x [mm]")
-        self.ax.set_ylabel("y [mm]")
+        ax.set_xlim(width[0]-20, width[-1]+20)
+        ax.set_ylim(height[0]-20, height[-1]+20)
+        ax.set_xlabel("x [mm]")
+        ax.set_ylabel("y [mm]")
         plt.legend(loc="upper left")
         plt.title("Detector Hits")
         plt.tick_params(direction="in")
+        return fig, ax
 
     def plot_mpl(
             self,
@@ -381,47 +305,64 @@ class FullTrackReco:
         fig, plot = plt.subplots(figsize=(6, 6))
         ax = {"x": 0, "y": 1}[axis]
 
-        # Trajectories
-        p = self.data.predicted
-        t = self.data.truth
-        scalar_factor = 1E3
-
+        p = self.predicted
+        t = self.truth
+        
         # Predicted
-        p1 = p["p1"][self.eventID]*scalar_factor
-        v1 = p["v1"][self.eventID]*scalar_factor
+        plot.scatter(
+            x=[p["V1"][2], p["A1"][2], p["B1"][2]],
+            y=[p["V1"][ax], p["A1"][ax], p["B1"][ax]],
+            color="green"
+        )
+        plot.scatter(
+            x=[p["V2"][2], p["A2"][2], p["B2"][2]],
+            y=[p["V2"][ax], p["A2"][ax], p["B2"][ax]],
+            color="lightgreen"
+        )
         plot.plot(
-            [v1[2], p1[2]],
-            p1[ax]/p1[2]*([v1[2], p1[2]] - v1[2]),
+            [p["V1"][2], p["B1"][2]],
+            [p["V1"][ax], p["B1"][ax]],
             color="green",
-            label="Reconstr. photon 1")
-
-        p2 = p["p2"][self.eventID]*scalar_factor
-        v2 = p["v2"][self.eventID]*scalar_factor
+            linestyle="dashed",
+            alpha=0.5,
+            label="Predicted photon 1"
+        )
         plot.plot(
-            [v2[2], p2[2]],
-            p2[ax]/p2[2]*([v2[2], p2[2]] - v2[2]),
+            [p["V2"][2], p["B2"][2]],
+            [p["V2"][ax], p["B2"][ax]],
             color="lightgreen",
-            label="Reconstr. photon 2")
-
-        # Truth
-        p1 = t["p1"][self.eventID]*scalar_factor
-        v1 = t["v1"][self.eventID]*scalar_factor
+            linestyle="dashed",
+            alpha=0.5,
+            label="Predicted photon 2"
+        )
+        # True
+        plot.scatter(
+            x=[t["V1"][2], t["A1"][2], t["B1"][2]],
+            y=[t["V1"][ax], t["A1"][ax], t["B1"][ax]],
+            color="k",
+        )
+        plot.scatter(
+            x=[t["V2"][2], t["A2"][2], t["B2"][2]],
+            y=[t["V2"][ax], t["A2"][ax], t["B2"][ax]],
+            color="k",
+        )
         plot.plot(
-            [v1[2], p1[2]],
-            p1[ax]/p1[2]*([v1[2], p1[2]] - v1[2]),
+            [t["V1"][2], t["A1"][2], t["B1"][2]],
+            [t["V1"][ax], t["A1"][ax], t["B1"][ax]],
             color="k",
             linestyle="dashed",
-            alpha=0.5)
-
-        p2 = t["p2"][self.eventID]*scalar_factor
-        v2 = t["v2"][self.eventID]*scalar_factor
+            alpha=0.5,
+            label="True photon 1"
+        )
         plot.plot(
-            [v2[2], p2[2]],
-            p2[ax]/p2[2]*([v2[2], p2[2]] - v2[2]),
+            [t["V2"][2], t["A2"][2], t["B2"][2]],
+            [t["V2"][ax], t["A2"][ax], t["B2"][ax]],
             color="k",
-            label="True trajectory",
             linestyle="dashed",
-            alpha=0.5)
+            alpha=0.5,
+            label="True photon 2"
+        )
+
         
         # Absorber
         if show_absorber:
@@ -442,36 +383,18 @@ class FullTrackReco:
                     s=absorber_hits_size)
 
         # Tracker
-        for layerID in range(0, self.ATLayerNum):
-            trh = self.tracker_hits(layerID)
+        tracker = self.df[self.df["layerType"] == 1]
+        plot.scatter(
+            x=tracker["z"].values,
+            y=tracker[axis].values,
+            marker=".",
+            label="Tracker")
+        plot.vlines(
+            x=tracker["z"].values,
+            ymin=-self.ATCellSideLength*self.ATCCellNumRows/2,
+            ymax=self.ATCellSideLength*self.ATCCellNumCols/2,
+            alpha=0.1)
 
-            if self.ATLayerNum <= 5:
-                label = f"Tracking Layer {layerID}"
-            else:
-                label = "Tracking Layer"
-
-            if scale_hits_with_energy:
-                tracker_hits_size = trh["E"]/np.max(trh["E"])*1E3
-            else:
-                tracker_hits_size = None
-
-            if not trh["z"].empty:
-                tracker_colors = self.colors
-                plot.scatter(
-                    x=trh["z"].values,
-                    y=trh[axis].values,
-                    marker=".",
-                    color=tracker_colors[layerID],
-                    label=label,
-                    s=tracker_hits_size)
-                plot.vlines(
-                    x=trh["z"].values,
-                    ymin=-self.ATCellSideLength*self.ATCCellNumRows/2,
-                    ymax=self.ATCellSideLength*self.ATCCellNumCols/2,
-                    color=self.colors[layerID],
-                    alpha=0.1)
-            else:
-                pass
 
         # Calorimeter
         self.calo = self.df[self.df["layerType"] == 2]
@@ -538,49 +461,11 @@ class PlottingWrapper:
             ax.legend("upper right")
             plt.savefig(data.savefigdir+"events_histogram")
             return ax
-        
 
-
-    def plot_p1(data):
-        xlim = (-5, 5)  # MeV
-        bins = np.linspace(xlim[0], xlim[1], 100)
-        fig, ax = plt.subplots(1, 1, figsize=(8, 7))
-        p = data.predicted["p1"]
-        t = data.truth["p1"]
-
-        ax.hist(
-            ((p[:, 0] - t[:, 0])/t[:, 0]),
-            bins=bins,
-            histtype="step",
-            label=r"$\Delta p_{1, x}$",
-            density=False)
-        ax.hist(
-            (p[:, 1] - t[:, 1])/t[:, 1],
-            bins=bins,
-            histtype="step",
-            label=r"$\Delta p_{1, y}$",
-            density=False)
-        ax.hist(
-            (p[:, 2] - t[:, 2])/t[:, 2],
-            bins=bins,
-            histtype="step",
-            label=r"$\Delta p_{1, z}$",
-            density=False)
-        PlottingWrapper.plot_add_info(ax)
-        ax.set_xlabel(r"$(p_1^{pred} - p_1^{true})/(p_1^{true})$", loc="right")
-        ax.set_ylabel(f"Events / ({np.round(bins[1]-bins[0], 2)} MeV)", loc="top")
-        ax.legend(loc="upper right")
-        ax.set_xlim(xlim)
-        ax.set_yscale("log")
-        plt.savefig(data.savefigdir+"residuals_p1")
-        return ax
-
-
-    def plot_v1(data):
+    def plot_point(data, obs="A1"):
         xlim = (-500, 500)
         bins = np.linspace(xlim[0], xlim[1], 100)
         fig, ax = plt.subplots(1, 1, figsize=(8, 7))
-        obs = "v1"
         density = True
 
         ax.hist(
@@ -639,39 +524,52 @@ class PlottingWrapper:
         return ax
 
 
-    def plot_tracks(data):
-        eventID = np.random.default_rng().choice(len(data.truth["p1"]))
-        fig, plot = Plot.tracks(
-            data,
-            eventID=eventID
-            )(
+    def plot_tracks(data, eventID, axis="x"):
+        """ Method which calls the FullTrackReco class and plots the hits as
+        well as the true and predicted trajectory of the photons based on the
+        output from the network
+        """
+        if len(data.hits) == 0:
+            logger.error(
+                "Error: Root files have not been extracted yet. Use Extract.read_hits() or set " +
+                "'read_hits' to True when using Extract().")
+
+        ftr = FullTrackReco(data, eventID)
+
+        fig, plot = ftr.plot_mpl(
             scale_hits_with_energy=False,
             show_absorber=True,
-            axis="y"
-            )
+            axis=axis
+        )
         plot.set_xlabel("z [mm]", loc="right")
-        plot.set_ylabel("y [mm]", loc="top")
+        plot.set_ylabel(f"{axis} [mm]", loc="top")
         PlottingWrapper.plot_add_info(plot)
         #plot.legend(loc="lower left")
         plot.set_xlim(-1500, 550)
         plot.set_ylim(-140, 150)
         plot.set_title("Detector sideview with two photon vertex")
+        plot.legend(loc="center left")
         fig.set_size_inches(8, 6)
-        plt.savefig(f"{data.savefigdir}/Tracks/event_{eventID}")
+        plt.savefig(f"{data.savefigdir}/Tracks/event_{eventID}_{axis}")
         return plot
+    
+    def plot_calo(data, eventID):
+        ftr = FullTrackReco(data, eventID)
+        ftr.plot_calo()
+        plt.savefig(f"{data.savefigdir}/Calo/event_{eventID}")
+        return ftr
 
 
 if __name__ == "__main__":
     
-    detector_type = "idealized_detector"
-    model_name = "testing_no_uncertainties"
+    detector_type = "normal_detector"
+    model_name = "11_30"
     
     
     if detector_type == "idealized_detector":
         data = Extract(
             model_dir=f"./nntr_models/idealized_detector/garnet/",
             model_name=model_name,
-            read_hits=False,
             testing_root_files="./nntr_data/idealized_detector/Raw/Testing.root",
             read_uncertainties=True)
 
@@ -693,17 +591,20 @@ if __name__ == "__main__":
         data = Extract(
             model_dir=f"./nntr_models/{detector_type}/garnet",
             model_name=model_name,
-            read_hits=True,
-            testing_root_files="./nntr_data/normal_detector/Raw/Testing.root")
-
+            testing_root_files="./nntr_data/normal_detector/Raw/Testing_preprocessed.root",
+            predicted_file="Predicted/pred_Testing_preprocessed.djctd",
+            read_uncertainties=True)
 
     data.savefigdir = data.model_dir+data.model_name+"/Plots/"
     os.makedirs(data.savefigdir+"/Tracks/", exist_ok=True)
 
     PlottingWrapper.plot_hits_per_events_histogram(data)
-    PlottingWrapper.plot_p1(data)
-    PlottingWrapper.plot_v1(data)
-    PlottingWrapper.plot_v1_z(data)
-    PlottingWrapper.plot_v1_z_pred_vs_true(data)
-    PlottingWrapper.plot_tracks(data)
+    PlottingWrapper.plot_point(data, obs="A1")
+    PlottingWrapper.plot_point(data, obs="B1")
+    #PlottingWrapper.plot_v1_z(data)
+    #PlottingWrapper.plot_v1_z_pred_vs_true(data)
+    eventID = np.random.default_rng().choice(len(data.truth["A1"]))
+    PlottingWrapper.plot_tracks(data, eventID, "x")
+    PlottingWrapper.plot_tracks(data, eventID, "y")
+    PlottingWrapper.plot_calo(data, eventID)
 

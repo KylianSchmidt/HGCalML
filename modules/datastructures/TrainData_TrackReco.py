@@ -30,8 +30,8 @@ class TrainData_TrackReco(TrainData):
         with uproot.open(filename) as file:
             hits_normalized = file["Hits"]["hits_normalized"].arrays(library="np")[
                 "hits_normalized"]
-            offsets = file["Hits_offsets_cumsum"]["offsets_cumsum"].arrays(library="np")[
-                "offsets_cumsum"]
+            offsets = file["Hits_row_splits"]["rowsplits"].arrays(library="np")[
+                "rowsplits"]
             truth_normalized = file["Truth"]["truth_normalized"].arrays(library="np")[
                 "truth_normalized"]
 
@@ -45,7 +45,8 @@ class TrainData_TrackReco(TrainData):
             order='C',
             casting="same_kind")
 
-        assert offsets[0] == 0
+        assert offsets[0] == 0 and offsets[-1] == len(feature)
+        assert len(offsets)-1 == len(truth)
 
         return ([SimpleArray(feature, offsets, name="Features")], [truth], [])
 
@@ -62,13 +63,11 @@ class TrainData_TrackReco(TrainData):
 
         Predicted will be a list of numpy arrays
         """
-
         data = {
             "Hits": features,
             "Truth": truth[0],
-            "Predicted": predicted[0][:, 0:12]}
-        if len(predicted[0]) == 24:
-            data["Uncertainties"] = predicted[0][:, 12:24]
+            "Predicted": predicted[0]
+        }
 
         with open(outfilename, "wb") as file:
             pickle.dump(data, file, pickle.HIGHEST_PROTOCOL)

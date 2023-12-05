@@ -172,7 +172,7 @@ class NNTR():
 
         a = tf.keras.layers.Concatenate(axis=1)(a_list)
         a = tf.keras.layers.Flatten()(a)
-        a = tf.keras.layers.Dense(256, activation='elu')(a)
+        a = tf.keras.layers.Dense(256, activation="linear")(a)
         a = ScaledGooeyBatchNorm2(**batchnorm_parameters)(a)
 
         return a
@@ -182,7 +182,7 @@ class NNTR():
         x, rs = inputs
         a = NNTR.my_model(x, rs)
 
-        features = tf.keras.layers.Dense(12, activation="linear")(a)
+        features = tf.keras.layers.Dense(18, activation="linear")(a)
 
         return tf.keras.Model(inputs, features)
 
@@ -191,8 +191,8 @@ class NNTR():
         x, rs = inputs
         a = NNTR.my_model(x, rs)
 
-        features = tf.keras.layers.Dense(12, activation="linear")(a)
-        ln_sigma = tf.keras.layers.Dense(12, activation="relu")(a)
+        features = tf.keras.layers.Dense(18, activation="linear")(a)
+        ln_sigma = tf.keras.layers.Dense(18, activation="relu")(a)
 
         outputs = tf.keras.layers.Concatenate(axis=1)([features, ln_sigma])
 
@@ -210,27 +210,27 @@ if __name__ == "__main__":
     nntr = NNTR(
         train_uncertainties=False,
         detector_type="normal_detector",
-        model_name="garnet/11_27",
-        # takeweights="./nntr_models/idealized_detector/garnet/11_21_v1/Output/KERAS_check_best_model.h5"
+        model_name="garnet/11_30_nu",
+        #takeweights="./nntr_models/idealized_detector/garnet/11_23_nu/Output/KERAS_check_best_model.h5"
     )
 
     train, cb = nntr.configure_training()
     train.change_learning_rate(1e-3)
     train.trainModel(
-        nepochs=2,
-        batchsize=100000,
+        nepochs=5,
+        batchsize=10000,
         additional_callbacks=cb)
 
     train.change_learning_rate(5e-4)
     train.trainModel(
-        nepochs=5,
-        batchsize=100000,
+        nepochs=10,
+        batchsize=10000,
         additional_callbacks=cb)
 
     train.change_learning_rate(1e-4)
     train.trainModel(
-        nepochs=20,
-        batchsize=100000,
+        nepochs=40,
+        batchsize=10000,
         additional_callbacks=cb)
 
     # Prediction

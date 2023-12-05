@@ -19,6 +19,36 @@ def loss_reduceMean(truth, pred):
 global_loss_list['loss_reduceMean'] = loss_reduceMean
 
 
+def _nntr_find_prediction(p):
+    """
+    Shape of prediction (and truth) array: \n
+        0   1   2    3   4   5    6   7   8    9   10  11   12  13  14   15  16  17  \n
+        A1x A1y A1z  B1x B1y B1z  A2x A2y A2z  B2x B2y B2z  V1x V1y V1z  V1x V1y V1z \n
+    """
+    pred1 = tf.concat(
+        [a for a in
+            [p[:, 0:3],       # A1
+             p[:, 3:6],       # B1
+             p[:, 6:9],       # A2
+             p[:, 9:12],      # B2
+             p[:, 12:15],     # V1
+             p[:, 15:18]]],   # V2
+        axis=1)
+    pred2 = tf.concat(
+        [a for a in
+            [p[:, 6:9],      # A2
+             p[:, 9:12],     # B2
+             p[:, 0:3],      # A1
+             p[:, 3:6],      # B1
+             p[:, 15:18],    # V2
+             p[:, 12:15]]],  # V1
+        axis=1)
+
+    tf.debugging.check_numerics(pred1, "Prediction 1 has nans or infs")
+    tf.debugging.check_numerics(pred2, "Prediction 2 has nans or infs")
+    return pred1, pred2
+
+
 class L2Distance(tf.keras.losses.Loss):
     def __init__(self, **kwargs):
         """ Loss function for the reconstruction of two photons. Compares the
@@ -31,37 +61,14 @@ class L2Distance(tf.keras.losses.Loss):
         
     def call(self, truth, prediction):
         r""" Expect always two vertices and permutate both to check which best
-        fits the true vertex variables
-
-        Shape of prediction (and truth) array: \n
-        0   1   2    3   4   5    6   7   8    9   10  11  \n
-        px1 py1 pz1  vx1 vy1 vz1  px2 py2 pz2  vx2 vy2 vz2 \n
-        
+        fits the true vertex variables     
         
         Loss function without the uncertainty parameter 'sigma'
 
         Latex formula:
         \mathcal{L} = \left( \Vec{t} - \Vec{p} \right)^2
         """
-        p = prediction
-        pred1 = tf.concat(
-            [a for a in
-             [p[:, 0:3],       # p1
-              p[:, 3:6],       # v1
-              p[:, 6:9],       # p2
-              p[:, 9:12]]],    # v2
-            axis=1)
-        pred2 = tf.concat(
-            [a for a in
-             [p[:, 6:9],       # p2
-              p[:, 9:12],      # v2
-              p[:, 0:3],       # p1
-              p[:, 3:6]]],     # v1
-            axis=1)
-
-        tf.debugging.check_numerics(pred1, "Prediction 1 has nans or infs")
-        tf.debugging.check_numerics(pred2, "Prediction 2 has nans or infs")
-
+        pred1, pred2 = _nntr_find_prediction(prediction)
         # Loss function
         distance1 = tf.reduce_mean(
             (pred1 - truth)**2,
@@ -96,13 +103,8 @@ class L2DistanceWithUncertainties(tf.keras.losses.Loss):
         r""" Expect always two vertices and permutate both to check which best
         fits the true vertex variables
 
-        Shape of prediction (and truth) array: \n
-        0   1   2    3   4   5    6   7   8    9   10  11  \n
-        px1 py1 pz1  vx1 vy1 vz1  px2 py2 pz2  vx2 vy2 vz2 \n
-
         Uncertainties are given as ln(sigma) with indices in 'prediction': \n
-        12-23
-        
+        18-36      
         
         Allows the network to estimate the uncertainty on the L2 distance
         by training the parameter 'sigma'
@@ -112,25 +114,10 @@ class L2DistanceWithUncertainties(tf.keras.losses.Loss):
 
         For practical reasons, exp(sigma) is used to avoid divergences.
         """
-        p = prediction
-        pred1 = tf.concat(
-            [a for a in
-             [p[:, 0:3],       # p1
-              p[:, 3:6],       # v1
-              p[:, 6:9],       # p2
-              p[:, 9:12]]],    # v2
-            axis=1)
-        pred2 = tf.concat(
-            [a for a in
-             [p[:, 6:9],       # p2
-              p[:, 9:12],      # v2
-              p[:, 0:3],       # p1
-              p[:, 3:6]]],     # v1
-            axis=1)
+        pred1, pred2 = _nntr_find_prediction(prediction)
 
-        ln_sigma = p[:, 12:24]
-        tf.debugging.check_numerics(pred1, "Prediction 1 has nans or infs")
-        tf.debugging.check_numerics(pred2, "Prediction 2 has nans or infs")
+        assert prediction.shape[1] == 36
+        ln_sigma = prediction[:, 18:36]
         tf.debugging.check_numerics(ln_sigma, "Sigma has nans or infs")
 
         # Loss function
