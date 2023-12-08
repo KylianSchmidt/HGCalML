@@ -4,14 +4,16 @@ Uses the GravNet architecture
 '''
 
 import os
+import sys
 import tensorflow as tf
-from Losses import L2Distance, L2DistanceWithUncertainties
+from Losses import L2Distance, L2DistanceWithUncertainties, L1Distance
 from Layers import RaggedGlobalExchange
 from RaggedLayers import CollapseRagged
 from GravNetLayersRagged import (
     CastRowSplits, ScaledGooeyBatchNorm2, RaggedGravNet)
 from GarNetRagged import GarNetRagged
 from callbacks import NanSweeper
+from MetricsLayers import L2DistanceMetric
 from training_base import TrainingBase
 from predict import Prediction
 from DeepJetCore.training.DeepJet_callbacks import simpleMetricsCallback
@@ -21,14 +23,14 @@ class NNTR():
 
     def __init__(
             self,
-            train_uncertainties: bool,
+            model_type: bool,
             detector_type="idealized_detector",
             model_name="v1_test",
             takeweights="",
-    ):
+        ):
         self.detector_type = detector_type
         self.model_name = model_name
-        self.train_uncertainties = train_uncertainties
+        self.model_type = model_type
         self.takeweights = takeweights
         self.output_dir = f"./nntr_models/{self.detector_type}/{self.model_name}/Output"
         self.predicted_dir = f"./nntr_models/{self.detector_type}/{self.model_name}/Predicted"
@@ -48,7 +50,7 @@ class NNTR():
         print("Running training with the following parameters:")
         print(f"Detector type: {self.detector_type}")
         print(f"Model name: {self.model_name}")
-        print(f"Train uncertainties: {self.train_uncertainties}")
+        print(f"Train uncertainties: {self.model_type}")
         print(f"Take weights: {self.takeweights}")
 
         assert self.detector_type and os.path.isdir(f"./nntr_data/{self.detector_type}"), \
@@ -65,12 +67,12 @@ class NNTR():
 
         if not train.modelSet():
             # Choose between training with or without uncertainties
-            if self.train_uncertainties is True:
+            if self.model_type == "":
                 model = NNTR.model_with_uncertainties
                 loss = L2DistanceWithUncertainties()
-            if self.train_uncertainties is False:
+            if self.model_type is False:
                 model = NNTR.model_no_uncertainties
-                loss = L2Distance()
+                loss = L1Distance()  # was L2distance
 
             train.setModel(model)
             train.saveCheckPoint("before_training.h5")
@@ -89,12 +91,12 @@ class NNTR():
             NanSweeper()]
         return train, cb
 
-    def predict(self):
+    def predict(self, epoch=""):
         Prediction(
             inputModel=f"{self.output_dir}/KERAS_check_best_model.h5",
             trainingDataCollection=f"{self.output_dir}/trainsamples.djcdc",
             inputSourceFileList=f"./nntr_data/{self.detector_type}/Testing/dataCollection.djcdc",
-            outputDir=self.predicted_dir)
+            outputDir=self.predicted_dir+epoch)
 
     def my_model(x, rs):
         """ Network model for the BeamDumpTrackCalo two photon reconstruction
@@ -107,13 +109,13 @@ class NNTR():
 
         Version
         -------
-        1.2.0
+        1.3.0
 
         Added GarNetRagged layer for more precise momentum direction estimation
 
         Date
         ----
-        2023-11-02
+        2023-12-08
 
         Parameters
         ----------
@@ -144,12 +146,12 @@ class NNTR():
         )([x, rs])
 
         x_list = []
-        for _ in range(5):
+        for _ in range(3):
             x = tf.keras.layers.Dense(64, activation='elu')(x)
             x = tf.keras.layers.Dense(64, activation='elu')(x)
 
             x, *_ = RaggedGravNet(
-                n_neighbours=200,
+                n_neighbours=100,
                 n_dimensions=4,
                 n_filters=64,
                 n_propagate=64,
@@ -172,9 +174,7 @@ class NNTR():
 
         a = tf.keras.layers.Concatenate(axis=1)(a_list)
         a = tf.keras.layers.Flatten()(a)
-        a = tf.keras.layers.Dense(256, activation="linear")(a)
-        a = ScaledGooeyBatchNorm2(**batchnorm_parameters)(a)
-
+        a = tf.keras.layers.Dense(256)(a)
         return a
 
     def model_no_uncertainties(inputs):
@@ -202,36 +202,46 @@ class NNTR():
 if __name__ == "__main__":
     """ Train the NNTR model from the Command Line
 
-    NB: normal detector data without hits for calo being summed over has ~5000 hits per event
+    NB: normal detector data without hits for calo being summed over has ~1500 hits per event
     normal detector with hits for calo being summed over has 100 hits per event
     idealized_detector has 102 hits per event
     """
+    if len(sys.argv) == 1:
     # Training
-    nntr = NNTR(
-        train_uncertainties=False,
-        detector_type="normal_detector",
-        model_name="garnet/11_30_nu",
-        #takeweights="./nntr_models/idealized_detector/garnet/11_23_nu/Output/KERAS_check_best_model.h5"
-    )
+        nntr = NNTR(
+            model_type=False,
+            detector_type="idealized_detector",
+            model_name="garnet/12_08_nu_L1distance",
+            #takeweights="./nntr_models/normal_detector/garnet/11_31/Output/KERAS_check_best_model.h5"
+        )
+    elif len(sys.argv) == 4:
+        nntr = NNTR(
+            model_type=sys.argv[1],
+            detector_type=sys.argv[2],
+            model_name=sys.argv[3],
+        )
 
     train, cb = nntr.configure_training()
     train.change_learning_rate(1e-3)
     train.trainModel(
-        nepochs=5,
-        batchsize=10000,
+        nepochs=1,
+        batchsize=5000,
         additional_callbacks=cb)
+    nntr.predict(epoch="_epoch1")
 
     train.change_learning_rate(5e-4)
+    train.trainModel(
+        nepochs=4,
+        batchsize=5000,
+        additional_callbacks=cb)
+    nntr.predict(epoch="_epoch5")
+
+    train.change_learning_rate(1e-4)
     train.trainModel(
         nepochs=10,
         batchsize=10000,
         additional_callbacks=cb)
-
-    train.change_learning_rate(1e-4)
-    train.trainModel(
-        nepochs=40,
-        batchsize=10000,
-        additional_callbacks=cb)
+    nntr.predict(epoch="_epoch15")
 
     # Prediction
     print("Training finished, starting prediction")

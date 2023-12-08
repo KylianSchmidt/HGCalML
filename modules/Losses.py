@@ -1,4 +1,5 @@
 import tensorflow as tf
+import sys
 global_loss_list = {}
 
 
@@ -87,6 +88,38 @@ class L2Distance(tf.keras.losses.Loss):
 
 global_loss_list["L2Distance"] = L2Distance
 
+class L1Distance(tf.keras.losses.Loss):
+    def __init__(self, **kwargs):
+        """ Loss function for the reconstruction of two photons. Compares the
+        accuracy of the reconstructed track with both real tracks and minimizes
+        the combined distance.
+        """
+        super().__init__(
+            reduction=tf.keras.losses.Reduction.NONE,
+            name="L2Distance")
+        
+    def call(self, truth, prediction):
+        r""" Expect always two vertices and permutate both to check which best
+        fits the true vertex variables     
+        
+        Loss function without the uncertainty parameter 'sigma'
+
+        Latex formula:
+        \mathcal{L} = \left( \Vec{t} - \Vec{p} \right)^2
+        """
+        pred1, pred2 = _nntr_find_prediction(prediction)
+        # Loss function
+        distance1 = tf.math.abs(pred1 - truth)
+        distance2 = tf.math.abs(pred2 - truth)
+        # Loss = E x min([d1, d2]) = E x 1
+        loss_per_event = tf.reduce_min(
+            tf.concat([distance1, distance2], axis=1),
+            axis=1)
+        # res = min(E x 1) = 1
+        return tf.reduce_mean(loss_per_event)
+
+global_loss_list["L1Distance"] = L1Distance
+
 
 class L2DistanceWithUncertainties(tf.keras.losses.Loss):
     """ Loss function for the reconstruction of two photons. Compares the
@@ -118,6 +151,8 @@ class L2DistanceWithUncertainties(tf.keras.losses.Loss):
 
         assert prediction.shape[1] == 36
         ln_sigma = prediction[:, 18:36]
+        tf.print("\nsigma", tf.reduce_min(ln_sigma, axis=1), output_stream=sys.stdout)
+        tf.print("\npred-truth", tf.reduce_mean(pred1-truth, axis=1))
         tf.debugging.check_numerics(ln_sigma, "Sigma has nans or infs")
 
         # Loss function
