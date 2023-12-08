@@ -65,8 +65,8 @@ class TrainData_TrackReco(TrainData):
         """
         data = {
             "Hits": features,
-            "Truth": truth[0],
-            "Predicted": predicted[0]
+            "Truth": truth,
+            "Predicted": predicted
         }
 
         with open(outfilename, "wb") as file:

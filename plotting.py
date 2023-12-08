@@ -74,11 +74,6 @@ class Extract:
             self.truth_mean = file["Truth_parameters"]["truth_mean"].arrays()["truth_mean"]
             self.truth_std = file["Truth_parameters"]["truth_std"].arrays()["truth_std"]
 
-        if len(self.hits_normalized[0]) == 36:
-            self.hits_normalized = self.hits_normalized[:, 0:18]
-            self.uncertainties = self.hits_normalized[:, 18:36]
-            self.read_uncertainties = False
-
         self.hits_flattened = self.hits_normalized*self.hits_std+self.hits_mean
         self.hits = ak.unflatten(self.hits_flattened, self.offsets)
         self.truth_array = self.truth_normalized*self.truth_std+self.truth_mean
@@ -98,7 +93,12 @@ class Extract:
                 "Available models are:", os.listdir(self.model_dir))
         else:
             with open(f"{self.model_dir}/{self.model_name}/{self.predicted_file}", "rb") as file:
-                predicted = pickle.load(file)["Predicted"][:, 0:18]*self.truth_std+self.truth_mean
+                prediction_all = pickle.load(file)["Predicted"]
+                predicted = prediction_all[0][:, 0:18]*self.truth_std + self.truth_mean
+
+                if self.read_uncertainties and len(prediction_all[0][0]) == 36:
+                    self.uncertainties = np.exp(prediction_all[0][:, 18:36])*self.truth_std + self.truth_mean
+                    print("Caution: uncertainties rescaled with np.exp()")
 
             self.predicted = {}
             self.predicted["A1"] = predicted[:, 0:3]
@@ -107,18 +107,6 @@ class Extract:
             self.predicted["B2"] = predicted[:, 9:12]
             self.predicted["V1"] = predicted[:, 12:15]
             self.predicted["V2"] = predicted[:, 15:18]
-
-        # Read uncertainties
-        if self.read_uncertainties:
-            try:
-                with open(f"{self.model_dir}/{self.model_name}/{self.predicted_file}", "rb") as file:
-                    self.uncertainties = pickle.load(file)["Uncertainties"]*self.truth_std+self.truth_mean
-
-                for key in self.uncertainties.keys():
-                    self.uncertainties[key] = np.exp(self.uncertainties[key])
-                    logger.info("Caution: Uncertainties were rescaled to exp(sigma)")
-            except:
-                KeyError("Uncertainties not found in file")
 
 
 TOutput = TypeVar("TOutput", bound=Extract)
