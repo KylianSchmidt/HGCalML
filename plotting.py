@@ -97,8 +97,8 @@ class Extract:
                 predicted = prediction_all[0][:, 0:18]*self.truth_std + self.truth_mean
 
                 if self.read_uncertainties and len(prediction_all[0][0]) == 36:
-                    self.uncertainties = np.exp(prediction_all[0][:, 18:36])*self.truth_std + self.truth_mean
-                    print("Caution: uncertainties rescaled with np.exp()")
+                    self.uncertainties = np.exp(prediction_all[0][:, 18:36])
+                    print("Caution: uncertainties rescaled with np.exp() but are otherwise untouched (take care of undoing any normalization)")
 
             self.predicted = {}
             self.predicted["A1"] = predicted[:, 0:3]

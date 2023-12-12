@@ -10,7 +10,16 @@ from icecream import ic
 
 
 class PrepareInputs:
-    def __init__(self, filename):
+    def __init__(self):
+        self.truth_mean = None
+        self.truth_std = None
+        self.hits_mean = None
+        self.hits_std = None
+        self.perfect_hits_mean = None
+        self.perfect_hits_std = None
+
+
+    def perform(self, filename):
         self.filename = filename.rstrip('.root')
         write = True
 
@@ -132,15 +141,15 @@ class PrepareInputs:
         features = np.array(ak.to_list(ak.flatten(features)))
 
         # Normalized truth and features
-        truth_mean = np.mean(truth_points, axis=0)+1E-10
-        truth_std = np.std(truth_points, axis=0)+1E-10
-        truth_points_normalized = (truth_points-truth_mean)/truth_std
+        if self.truth_mean is None
+            self.truth_mean = np.mean(truth_points, axis=0)+1E-10
+            self.truth_std = np.std(truth_points, axis=0)+1E-10
+        truth_points_normalized = (truth_points-self.truth_mean)/self.truth_std
 
-        mean = np.mean(features, axis=0)+1E-10
-        std = np.std(features, axis=0)+1E-10
-        hits_normalized = (features-mean)/std
-
-
+        if self.hits_mean is None
+            self.hits_mean = np.mean(features, axis=0)+1E-10
+            self.hits_std = np.std(features, axis=0)+1E-10
+        hits_normalized = (features-self.hits_mean)/self.hits_std
 
         # Check that everything is correct
         assert len(offsets_cumsum) == len(truth_points)+1
@@ -160,9 +169,9 @@ class PrepareInputs:
                 file["Hits"] = {"hits_normalized": hits_normalized}
                 file["Hits_row_splits"] = {"rowsplits": offsets_cumsum}
                 file["Hits_offsets"] = {"offsets": offsets}
-                file["Hits_parameters"] = {"hits_mean": mean, "hits_std": std}
+                file["Hits_parameters"] = {"hits_mean": self.hits_mean, "hits_std": self.hits_std}
                 file["Truth"] = {"truth_normalized": truth_points_normalized}
-                file["Truth_parameters"] = {"truth_mean": truth_mean, "truth_std": truth_std}
+                file["Truth_parameters"] = {"truth_mean": self.truth_mean, "truth_std": self.truth_std}
 
         # Perfect detector
         perfect_hits = []
@@ -188,9 +197,10 @@ class PrepareInputs:
         perfect_hits = np.array(ak.to_list(ak.flatten(perfect_hits)))
 
         # Normalize
-        perfect_hits_mean = np.mean(perfect_hits, axis=0)+1E-10
-        perfect_hits_std = np.std(perfect_hits, axis=0)+1E-10
-        perfect_hits_normalized = (perfect_hits-perfect_hits_mean)/perfect_hits_std
+        if self.perfect_hits_mean is None:
+            self.perfect_hits_mean = np.mean(perfect_hits, axis=0)+1E-10
+            self.perfect_hits_std = np.std(perfect_hits, axis=0)+1E-10
+        perfect_hits_normalized = (perfect_hits-self.perfect_hits_mean)/self.perfect_hits_std
 
         assert len(perfect_offsets_cumsum) == len(truth_points)+1
 
@@ -200,9 +210,12 @@ class PrepareInputs:
                 file["Hits"] = {"hits_normalized": perfect_hits_normalized}
                 file["Hits_row_splits"] = {"rowsplits": perfect_offsets_cumsum}
                 file["Hits_offsets"] = {"offsets": perfect_offsets}
-                file["Hits_parameters"] = {"hits_mean": perfect_hits_mean, "hits_std": perfect_hits_std}
+                file["Hits_parameters"] = {
+                    "hits_mean": self.perfect_hits_mean,
+                    "hits_std": self.perfect_hits_std}
                 file["Truth"] = {"truth_normalized": truth_points_normalized}
-                file["Truth_parameters"] = {"truth_mean": truth_mean, "truth_std": truth_std}
+                file["Truth_parameters"] = {"truth_mean": self.truth_mean, "truth_std": self.truth_std}
+ 
 
     def _find_hits(self) -> ak.Array:
         keys = ["layerType", "cellID", "x", "y", "z", "E"]
@@ -246,6 +259,7 @@ class PrepareInputs:
 
 
 if __name__ == "__main__":
-    PrepareInputs("./nntr_data/normal_detector/Raw/Testing.root")
-    PrepareInputs("./nntr_data/normal_detector/Raw/Training.root")
+    pi = PrepareInputs()
+    pi.perform("./nntr_data/normal_detector/Raw/Training.root")
+    pi.perform("./nntr_data/normal_detector/Raw/Testing.root")
 

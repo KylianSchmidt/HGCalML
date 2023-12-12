@@ -6,7 +6,7 @@ Uses the GravNet architecture
 import os
 import sys
 import tensorflow as tf
-from Losses import L2Distance, L2DistanceWithUncertainties, L1Distance
+from Losses import L2Distance, L2DistanceWithUncertainties, QuantileLoss
 from Layers import RaggedGlobalExchange
 from RaggedLayers import CollapseRagged
 from GravNetLayersRagged import (
@@ -67,12 +67,15 @@ class NNTR():
 
         if not train.modelSet():
             # Choose between training with or without uncertainties
-            if self.model_type == "":
+            if self.model_type == "with_uncertainties":
                 model = NNTR.model_with_uncertainties
                 loss = L2DistanceWithUncertainties()
-            if self.model_type is False:
+            if self.model_type == "no_uncertainties":
                 model = NNTR.model_no_uncertainties
-                loss = L1Distance()  # was L2distance
+                loss = L2Distance()
+            else:
+                print("No such model type")
+            
 
             train.setModel(model)
             train.saveCheckPoint("before_training.h5")
@@ -187,14 +190,27 @@ class NNTR():
         return tf.keras.Model(inputs, features)
 
     def model_with_uncertainties(inputs):
-
+        # Using quantile errors
         x, rs = inputs
         a = NNTR.my_model(x, rs)
 
         features = tf.keras.layers.Dense(18, activation="linear")(a)
-        ln_sigma = tf.keras.layers.Dense(18, activation="relu")(a)
+        sigma = tf.keras.layers.Dense(18, activation="softplus", bias_initializer="ones")(a)
 
-        outputs = tf.keras.layers.Concatenate(axis=1)([features, ln_sigma])
+        outputs = tf.keras.layers.Concatenate(axis=1)([features, sigma])
+
+        return tf.keras.Model(inputs=inputs, outputs=outputs)
+    
+    def model_with_quantiles(inputs):
+        # Using quantile errors
+        x, rs = inputs
+        a = NNTR.my_model(x, rs)
+
+        features = tf.keras.layers.Dense(18, activation="linear")(a)
+        quantile_lower = tf.keras.layers.Dense(18, activation="linear")(a)
+        quantile_upper = tf.keras.layers.Dense(18, activation="linear")(a)
+
+        outputs = tf.keras.layers.Concatenate(axis=1)([features, quantile_lower, quantile_upper])
 
         return tf.keras.Model(inputs=inputs, outputs=outputs)
 
@@ -209,9 +225,9 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
     # Training
         nntr = NNTR(
-            model_type=False,
-            detector_type="idealized_detector",
-            model_name="garnet/12_08_nu_L1distance",
+            model_type="with_uncertainties",
+            detector_type="normal_detector",
+            model_name="garnet/12_11_bare_sigma_with_initializer",
             #takeweights="./nntr_models/normal_detector/garnet/11_31/Output/KERAS_check_best_model.h5"
         )
     elif len(sys.argv) == 4:
