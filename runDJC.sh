@@ -9,5 +9,5 @@ fi
 
 sing=`which singularity`
 
-$sing run $gpuopt -B /home /cvmfs/unpacked.cern.ch/registry.hub.docker.com/cernml4reco/deepjetcore3:latest
+$sing run $gpuopt -B /home,/ceph /cvmfs/unpacked.cern.ch/registry.hub.docker.com/cernml4reco/deepjetcore3:latest
 #/home/kschmidt/DeepJetCore/TrackReco_DeepJetCore/HGCalML/cvmfs/deepjetcore3_latest.sif

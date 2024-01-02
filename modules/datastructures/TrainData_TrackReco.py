@@ -34,6 +34,13 @@ class TrainData_TrackReco(TrainData):
                 "rowsplits"]
             truth_normalized = file["Truth"]["truth_normalized"].arrays(library="np")[
                 "truth_normalized"]
+            hits_mean = file["Hits_parameters"]["hits_mean"].arrays(library="np")["hits_mean"]
+            hits_std = file["Hits_parameters"]["hits_std"].arrays(library="np")["hits_std"]
+            truth_mean = file["Truth_parameters"]["truth_mean"].arrays(library="np")["truth_mean"]
+            truth_std = file["Truth_parameters"]["truth_std"].arrays(library="np")["truth_std"]
+
+        print("hits[0]=", (hits_normalized*hits_std + hits_mean)[0])
+        print("truth[0]=", (truth_normalized*truth_std + truth_mean)[0])
 
         truth = truth_normalized.astype(
             dtype='float32',

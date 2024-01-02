@@ -94,11 +94,12 @@ class Extract:
         else:
             with open(f"{self.model_dir}/{self.model_name}/{self.predicted_file}", "rb") as file:
                 prediction_all = pickle.load(file)["Predicted"]
-                predicted = prediction_all[0][:, 0:18]*self.truth_std + self.truth_mean
+                self.predicted_raw = prediction_all[0]
+                predicted = self.predicted_raw[:, 0:18]*self.truth_std + self.truth_mean
 
                 if self.read_uncertainties and len(prediction_all[0][0]) == 36:
-                    self.uncertainties = np.exp(prediction_all[0][:, 18:36])
-                    print("Caution: uncertainties rescaled with np.exp() but are otherwise untouched (take care of undoing any normalization)")
+                    self.uncertainties = prediction_all[0][:, 18:36]
+                    print("Caution: when training ln_sigma, rescale with np.exp(uncertainties). Also take care of undoing any normalization")
 
             self.predicted = {}
             self.predicted["A1"] = predicted[:, 0:3]

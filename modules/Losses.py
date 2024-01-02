@@ -100,7 +100,7 @@ class L1Distance(tf.keras.losses.Loss):
         
     def call(self, truth, prediction):
         r""" Expect always two vertices and permutate both to check which best
-        fits the true vertex variables     
+        fits the true vertex variables
         
         Loss function without the uncertainty parameter 'sigma'
 
@@ -150,13 +150,13 @@ class L2DistanceWithUncertainties(tf.keras.losses.Loss):
         pred1, pred2 = _nntr_find_prediction(prediction)
         assert prediction.shape[1] == 36
 
-        train_ln_sigma = False
+        mode = "sigma"
 
-        if train_ln_sigma == True:
+        if mode == "ln_sigma":
             # train ln(sigma) to improve convergence
             ln_sigma = prediction[:, 18:36]
-            tf.print("\nln(sigma)", tf.reduce_min(ln_sigma, axis=1), output_stream=sys.stdout)
-            tf.print("\npred-truth", tf.reduce_mean(pred1-truth, axis=1))
+            tf.print("\nln(sigma)", tf.reduce_min(ln_sigma, axis=0), output_stream=sys.stdout)
+            tf.print("\npred-truth", tf.reduce_mean(pred1-truth, axis=0))
             tf.debugging.check_numerics(ln_sigma, "ln(sigma) has nans or infs")
 
             # Loss function
@@ -175,20 +175,20 @@ class L2DistanceWithUncertainties(tf.keras.losses.Loss):
             # res = min(E x 1) = 1
             return tf.reduce_mean(loss_per_event)
         
-        if train_ln_sigma == False:
+        if mode == "sigma":
             # train sigma as is
             sigma = prediction[:, 18:36]
-            tf.print("\nsigma", tf.reduce_min(sigma, axis=1), output_stream=sys.stdout)
-            tf.print("\npred-truth", tf.reduce_mean(pred1-truth, axis=1))
+            tf.print("\nsigma", tf.reduce_min(sigma, axis=0), output_stream=sys.stdout)
+            tf.print("\npred-truth", tf.reduce_mean(pred1-truth, axis=0))
             tf.debugging.check_numerics(sigma, "Sigma has nans or infs")
 
             # Loss function
             distance1 = tf.reduce_mean(
-                ((pred1 - truth)/sigma)**2 + sigma**2,
+                ((pred1 - truth)/sigma)**2 + 2*tf.math.log(sigma),
                 axis=1,
                 keepdims=True)
             distance2 = tf.reduce_mean(
-                ((pred2 - truth)/sigma)**2 + sigma**2,
+                ((pred2 - truth)/sigma)**2 + 2*tf.math.log(sigma),
                 axis=1,
                 keepdims=True)
             # Loss = E x min([d1, d2]) = E x 1
@@ -197,6 +197,29 @@ class L2DistanceWithUncertainties(tf.keras.losses.Loss):
                 axis=1)
             # res = min(E x 1) = 1
             return tf.reduce_mean(loss_per_event)
+
+        if mode == "inverse_sigma":
+            inverse_sigma = prediction[:, 18:36]
+            tf.print("\nsigma", 1/tf.reduce_min(inverse_sigma, axis=0), output_stream=sys.stdout)
+            tf.print("\npred-truth", tf.reduce_mean(pred1-truth, axis=0))
+            tf.debugging.check_numerics(inverse_sigma, "Sigma has nans or infs")
+
+            # Loss function
+            distance1 = tf.reduce_mean(
+                ((pred1 - truth)*inverse_sigma)**2 + inverse_sigma**(-2),
+                axis=1,
+                keepdims=True)
+            distance2 = tf.reduce_mean(
+                ((pred2 - truth)*inverse_sigma)**2 + inverse_sigma**(-2),
+                axis=1,
+                keepdims=True)
+            # Loss = E x min([d1, d2]) = E x 1
+            loss_per_event = tf.reduce_min(
+                tf.concat([distance1, distance2], axis=1),
+                axis=1)
+            # res = min(E x 1) = 1
+            return tf.reduce_mean(loss_per_event)
+
 
 
 global_loss_list["L2DistanceWithUncertainties"] = L2DistanceWithUncertainties
@@ -234,7 +257,7 @@ class QuantileLoss(tf.keras.losses.Loss):
         quantile_lower = prediction[:, 18:36]
         quantile_upper = prediction[:, 36:54]
         tf.print("\nquantile_lower", tf.reduce_min(quantile_lower, axis=1), output_stream=sys.stdout)
-        tf.print("\nquantile_upper", tf.reduce_min(quantile_lower, axis=1), output_stream=sys.stdout)
+        tf.print("\nquantile_upper", tf.reduce_min(quantile_upper, axis=1), output_stream=sys.stdout)
         tf.print("\npred-truth", tf.reduce_mean(pred1-truth, axis=1))
         tf.debugging.check_numerics(quantile_lower, "Lower quantile has nans or infs")
         tf.debugging.check_numerics(quantile_upper, "Higher quantile has nans or infs")
@@ -260,14 +283,14 @@ class QuantileLoss(tf.keras.losses.Loss):
             residual1 = tf.reduce_mean(tf.abs(pred1 - truth), axis=1, keepdims=True)
             residual2 = tf.reduce_mean(tf.abs(pred2 - truth), axis=1, keepdims=True)
             residual = tf.reduce_min(tf.concat([residual1, residual2], axis=1), axis=1)
-            loss_quantile = max(quantile_value*residual, (quantile_value-1)*residual)
+            residual = tf.reduce_mean(residual)
+            loss_quantile = tf.maximum(quantile_value*residual, (quantile_value-1)*residual)
             return loss_quantile
 
         loss_quantile_lower = _compute_quantile(0.25)
         loss_quantile_upper = _compute_quantile(0.75)
-        print("\Lower quantile loss", tf.reduce_mean(loss_quantile_lower), axis=1)
-
-        return 
+        print("\Lower and upper Quantile losses", loss_quantile_lower, loss_quantile_upper)
+        return loss_median + loss_quantile_lower + loss_quantile_upper
 
 
 global_loss_list["QuantileLoss"] = QuantileLoss

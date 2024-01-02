@@ -2,7 +2,7 @@ import numpy as np
 import awkward as ak
 import pandas as pd
 import uproot
-import sys
+import os
 import itertools
 import matplotlib.pyplot as plt
 from tabulate import tabulate
@@ -20,6 +20,7 @@ class PrepareInputs:
 
 
     def perform(self, filename):
+        print("Filename:", filename)
         self.filename = filename.rstrip('.root')
         write = True
 
@@ -122,7 +123,7 @@ class PrepareInputs:
         p2 = truth_points[:, 15:18] - truth_points[:, 6:9]
         args = p1[:, 0]*p2[:, 0] + p1[:, 1]*p2[:, 1] + p1[:, 2]*p2[:, 2]
         theta_arr = np.arccos(args/(np.linalg.norm(p1, axis=1)*np.linalg.norm(p2, axis=1)))*57.2958
-        mask_theta = theta_arr > 5
+        mask_theta = theta_arr > 2
         features = features[mask_theta]
         truth_points = truth_points[mask_theta]
         truth_array_grouped = truth_array_grouped[mask_theta]
@@ -141,12 +142,12 @@ class PrepareInputs:
         features = np.array(ak.to_list(ak.flatten(features)))
 
         # Normalized truth and features
-        if self.truth_mean is None
+        if self.truth_mean is None:
             self.truth_mean = np.mean(truth_points, axis=0)+1E-10
             self.truth_std = np.std(truth_points, axis=0)+1E-10
         truth_points_normalized = (truth_points-self.truth_mean)/self.truth_std
 
-        if self.hits_mean is None
+        if self.hits_mean is None:
             self.hits_mean = np.mean(features, axis=0)+1E-10
             self.hits_std = np.std(features, axis=0)+1E-10
         hits_normalized = (features-self.hits_mean)/self.hits_std
@@ -155,13 +156,13 @@ class PrepareInputs:
         assert len(offsets_cumsum) == len(truth_points)+1
         totlen = offsets_cumsum_with_empty_events[-1]
         print(tabulate(
-            [["Original root file:", totlen, 100],
+            [["Original root file:", totlen, 100.0],
              ["Removed absorber hits:", offsets_without_absorber_cumsum[-1], f"{offsets_without_absorber_cumsum[-1]/totlen*100:.2f}"],
              ["Summed over calo cells:", len(features_sum_calo), f"{len(features_sum_calo)/totlen*100:.2f}"],
-             ["Removed low E", num_after_low_E_cut, f"{num_after_low_E_cut/totlen*100:.2f}"],
+             ["Removed low energy", num_after_low_E_cut, f"{num_after_low_E_cut/totlen*100:.2f}"],
              ["Removed small opening angle", num_after_angle_cut, f"{num_after_angle_cut/totlen*100:.2f}"],
              ["Removed low hit count", num_after_low_hit_cut, f"{num_after_low_hit_cut/totlen*100:.2f}"]],
-            headers=["", "Number of events", "Ratio [%]"]))
+            headers=["", "Number of hits", "Ratio [%]"]))
 
         # Write to file
         if write:
@@ -206,7 +207,7 @@ class PrepareInputs:
 
         # Write to file
         if write:
-            with uproot.recreate(f'{self.filename.replace("normal", "idealized")}_preprocessed.root') as file:
+            with uproot.recreate(self.filename+"_idealized_preprocessed.root") as file:
                 file["Hits"] = {"hits_normalized": perfect_hits_normalized}
                 file["Hits_row_splits"] = {"rowsplits": perfect_offsets_cumsum}
                 file["Hits_offsets"] = {"offsets": perfect_offsets}
@@ -215,7 +216,6 @@ class PrepareInputs:
                     "hits_std": self.perfect_hits_std}
                 file["Truth"] = {"truth_normalized": truth_points_normalized}
                 file["Truth_parameters"] = {"truth_mean": self.truth_mean, "truth_std": self.truth_std}
- 
 
     def _find_hits(self) -> ak.Array:
         keys = ["layerType", "cellID", "x", "y", "z", "E"]
@@ -260,6 +260,13 @@ class PrepareInputs:
 
 if __name__ == "__main__":
     pi = PrepareInputs()
-    pi.perform("./nntr_data/normal_detector/Raw/Training.root")
-    pi.perform("./nntr_data/normal_detector/Raw/Testing.root")
+
+    dir = "/ceph/kschmidt/beamdump/nntr_data/12_20_training/"
+
+    for i in [0]: #range(20):
+        pi.perform(f"{dir}/Training_{i}.root")
+        
+        with open(f"{dir}/Training_preprocessed.txt", "a") as file:
+            file.write(f"{dir}/Training_{i}_preprocessed.root\n")
+
 

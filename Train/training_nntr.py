@@ -23,17 +23,25 @@ class NNTR():
 
     def __init__(
             self,
-            model_type: bool,
+            model_type="with_uncertainties",
             detector_type="idealized_detector",
             model_name="v1_test",
             takeweights="",
+            training_data_collection="",
+            testing_data_collection="",
         ):
         self.detector_type = detector_type
         self.model_name = model_name
         self.model_type = model_type
         self.takeweights = takeweights
+        self.training_data_collection = training_data_collection
+        self.testing_data_collection = testing_data_collection
         self.output_dir = f"./nntr_models/{self.detector_type}/{self.model_name}/Output"
         self.predicted_dir = f"./nntr_models/{self.detector_type}/{self.model_name}/Predicted"
+        if training_data_collection == "":
+            self.training_data_collection = f"./nntr_data/{self.detector_type}/Training/dataCollection.djcdc"
+        if testing_data_collection == "":
+            self.testing_data_collection = f"./nntr_data/{self.detector_type}/Testing/dataCollection.djcdc"
 
         if os.path.isdir(self.output_dir):
             print(
@@ -50,7 +58,7 @@ class NNTR():
         print("Running training with the following parameters:")
         print(f"Detector type: {self.detector_type}")
         print(f"Model name: {self.model_name}")
-        print(f"Train uncertainties: {self.model_type}")
+        print(f"Model type: {self.model_type}")
         print(f"Take weights: {self.takeweights}")
 
         assert self.detector_type and os.path.isdir(f"./nntr_data/{self.detector_type}"), \
@@ -59,9 +67,9 @@ class NNTR():
             f"./nntr_models/{self.detector_type}/{self.model_name}", exist_ok=True)
 
         train = TrainingBase(
-            inputDataCollection=f"./nntr_data/{self.detector_type}/Training/dataCollection.djcdc",
+            inputDataCollection=self.training_data_collection,
             outputDir=self.output_dir,
-            valdata=f"./nntr_data/{self.detector_type}/Training/dataCollection.djcdc",
+            valdata=self.training_data_collection,
             takeweights=self.takeweights
         )
 
@@ -70,12 +78,15 @@ class NNTR():
             if self.model_type == "with_uncertainties":
                 model = NNTR.model_with_uncertainties
                 loss = L2DistanceWithUncertainties()
-            if self.model_type == "no_uncertainties":
+            elif self.model_type == "no_uncertainties":
                 model = NNTR.model_no_uncertainties
                 loss = L2Distance()
+            elif self.model_type == "quantile" or self.model_type == "quantiles":
+                model = NNTR.model_with_quantiles
+                loss = QuantileLoss()
             else:
                 print("No such model type")
-            
+                return 0           
 
             train.setModel(model)
             train.saveCheckPoint("before_training.h5")
@@ -90,15 +101,14 @@ class NNTR():
                 output_file=train.args["outputDir"]+'/losses.html',
                 record_frequency=5,
                 plot_frequency=5,
-                select_metrics='*loss'),
-            NanSweeper()]
+                select_metrics='*loss')]
         return train, cb
 
     def predict(self, epoch=""):
         Prediction(
             inputModel=f"{self.output_dir}/KERAS_check_best_model.h5",
             trainingDataCollection=f"{self.output_dir}/trainsamples.djcdc",
-            inputSourceFileList=f"./nntr_data/{self.detector_type}/Testing/dataCollection.djcdc",
+            inputSourceFileList=self.testing_data_collection,
             outputDir=self.predicted_dir+epoch)
 
     def my_model(x, rs):
@@ -142,11 +152,6 @@ class NNTR():
         rs = CastRowSplits()(rs)
 
         x = ScaledGooeyBatchNorm2(**batchnorm_parameters)(x)
-        x, a = GarNetRagged(
-            n_aggregators=2,
-            n_Fout_nodes=64,
-            n_FLR_nodes=128
-        )([x, rs])
 
         x_list = []
         for _ in range(3):
@@ -163,10 +168,8 @@ class NNTR():
             x = ScaledGooeyBatchNorm2(**batchnorm_parameters)(x)
             x_list.append(x)
 
-        x = tf.keras.layers.Concatenate(axis=1)(x_list)
-
         a_list = []
-        for _ in range(5):
+        for _ in range(3):
             x, a = GarNetRagged(
                 n_aggregators=2,
                 n_Fout_nodes=64,
@@ -177,7 +180,7 @@ class NNTR():
 
         a = tf.keras.layers.Concatenate(axis=1)(a_list)
         a = tf.keras.layers.Flatten()(a)
-        a = tf.keras.layers.Dense(256)(a)
+        a = tf.keras.layers.Dense(128)(a)
         return a
 
     def model_no_uncertainties(inputs):
@@ -190,12 +193,17 @@ class NNTR():
         return tf.keras.Model(inputs, features)
 
     def model_with_uncertainties(inputs):
-        # Using quantile errors
+        # Using ln(d/dx(gaussian(x, mu, sigma)))
         x, rs = inputs
         a = NNTR.my_model(x, rs)
 
         features = tf.keras.layers.Dense(18, activation="linear")(a)
-        sigma = tf.keras.layers.Dense(18, activation="softplus", bias_initializer="ones")(a)
+        sigma = tf.keras.layers.Dense(
+            18,
+            activation="softplus",
+            bias_initializer="ones",
+            #activity_regularizer=tf.keras.regularizers.L2(1e-5),
+            )(a)
 
         outputs = tf.keras.layers.Concatenate(axis=1)([features, sigma])
 
@@ -225,10 +233,12 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
     # Training
         nntr = NNTR(
-            model_type="with_uncertainties",
+            model_type="no_uncertainties",
             detector_type="normal_detector",
-            model_name="garnet/12_11_bare_sigma_with_initializer",
-            #takeweights="./nntr_models/normal_detector/garnet/11_31/Output/KERAS_check_best_model.h5"
+            model_name="comparison/12_30_nu_only_gravnet",
+            #takeweights="./nntr_models/normal_detector/improved_gen/12_20_nu_v2/Output/KERAS_check_model_block_0_epoch_10.h5",
+            training_data_collection="/ceph/kschmidt/beamdump/nntr_data/12_20_training/Training/dataCollection.djcdc",
+            testing_data_collection="/ceph/kschmidt/beamdump/nntr_data/12_20_testing/Testing/dataCollection.djcdc"
         )
     elif len(sys.argv) == 4:
         nntr = NNTR(
@@ -238,27 +248,29 @@ if __name__ == "__main__":
         )
 
     train, cb = nntr.configure_training()
+
     train.change_learning_rate(1e-3)
     train.trainModel(
-        nepochs=1,
+        nepochs=10,
         batchsize=5000,
         additional_callbacks=cb)
-    nntr.predict(epoch="_epoch1")
-
-    train.change_learning_rate(5e-4)
-    train.trainModel(
-        nepochs=4,
-        batchsize=5000,
-        additional_callbacks=cb)
-    nntr.predict(epoch="_epoch5")
-
+    
     train.change_learning_rate(1e-4)
     train.trainModel(
-        nepochs=10,
+        nepochs=40,
         batchsize=10000,
         additional_callbacks=cb)
-    nntr.predict(epoch="_epoch15")
+    
+    train.change_learning_rate(5e-5)
+    train.trainModel(
+        nepochs=50,
+        batchsize=10000,
+        additional_callbacks=cb)
 
-    # Prediction
-    print("Training finished, starting prediction")
+    train.change_learning_rate(1e-5)
+    train.trainModel(
+        nepochs=100,
+        batchsize=10000,
+        additional_callbacks=cb)
+    
     nntr.predict()
