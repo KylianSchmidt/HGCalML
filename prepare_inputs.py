@@ -2,11 +2,12 @@ import numpy as np
 import awkward as ak
 import pandas as pd
 import uproot
-import os
+import os, sys
 import itertools
 import matplotlib.pyplot as plt
 from tabulate import tabulate
 from icecream import ic
+from multiprocessing import Pool
 
 
 class PrepareInputs:
@@ -260,13 +261,27 @@ class PrepareInputs:
 
 if __name__ == "__main__":
     pi = PrepareInputs()
+    j = sys.argv[1]
 
-    dir = "/ceph/kschmidt/beamdump/nntr_data/12_20_training/"
+    num_training_files = 0
+    num_testing_files = 0
 
-    for i in [0]: #range(20):
-        pi.perform(f"{dir}/Training_{i}.root")
-        
-        with open(f"{dir}/Training_preprocessed.txt", "a") as file:
+    # Training
+    dir = f"/ceph/kschmidt/beamdump/ta_distance_sweep/training_{j}_at/" 
+    with Pool(20) as p:
+        p.map(pi.perform, [(f"{dir}/Training_{i}.root") for i in range(num_training_files)])
+    
+    with open(f"{dir}/Training_preprocessed.txt", "a") as file:
+        for i in range(num_training_files):
             file.write(f"{dir}/Training_{i}_preprocessed.root\n")
+
+    # Testing
+    dir = f"/ceph/kschmidt/beamdump/ta_distance_sweep/testing_{j}/"
+    with Pool(20) as p:
+        p.map(pi.perform, [(f"{dir}/Testing_{i}.root") for i in range(num_testing_files)])
+    
+    with open(f"{dir}/Testing_preprocessed.txt", "a") as file:
+        for i in range(num_testing_files):
+            file.write(f"{dir}/Testing_{i}_preprocessed.root\n")
 
 

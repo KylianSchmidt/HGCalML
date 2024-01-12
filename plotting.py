@@ -95,19 +95,19 @@ class Extract:
             with open(f"{self.model_dir}/{self.model_name}/{self.predicted_file}", "rb") as file:
                 prediction_all = pickle.load(file)["Predicted"]
                 self.predicted_raw = prediction_all[0]
-                predicted = self.predicted_raw[:, 0:18]*self.truth_std + self.truth_mean
+                self.predicted_array = self.predicted_raw[:, 0:18]*self.truth_std + self.truth_mean
 
                 if self.read_uncertainties and len(prediction_all[0][0]) == 36:
                     self.uncertainties = prediction_all[0][:, 18:36]
                     print("Caution: when training ln_sigma, rescale with np.exp(uncertainties). Also take care of undoing any normalization")
 
             self.predicted = {}
-            self.predicted["A1"] = predicted[:, 0:3]
-            self.predicted["B1"] = predicted[:, 3:6]
-            self.predicted["A2"] = predicted[:, 6:9]
-            self.predicted["B2"] = predicted[:, 9:12]
-            self.predicted["V1"] = predicted[:, 12:15]
-            self.predicted["V2"] = predicted[:, 15:18]
+            self.predicted["A1"] = self.predicted_array[:, 0:3]
+            self.predicted["B1"] = self.predicted_array[:, 3:6]
+            self.predicted["A2"] = self.predicted_array[:, 6:9]
+            self.predicted["B2"] = self.predicted_array[:, 9:12]
+            self.predicted["V1"] = self.predicted_array[:, 12:15]
+            self.predicted["V2"] = self.predicted_array[:, 15:18]
 
 
 TOutput = TypeVar("TOutput", bound=Extract)
