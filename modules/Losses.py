@@ -71,11 +71,11 @@ class L2Distance(tf.keras.losses.Loss):
         """
         pred1, pred2 = _nntr_find_prediction(prediction)
         # Loss function
-        distance1 = tf.reduce_mean(
+        distance1 = tf.reduce_sum(
             (pred1 - truth)**2,
             axis=1,
             keepdims=True)
-        distance2 = tf.reduce_mean(
+        distance2 = tf.reduce_sum(
             (pred2 - truth)**2,
             axis=1,
             keepdims=True)
@@ -84,7 +84,7 @@ class L2Distance(tf.keras.losses.Loss):
             tf.concat([distance1, distance2], axis=1),
             axis=1)
         # res = min(E x 1) = 1
-        return tf.reduce_mean(loss_per_event)
+        return tf.reduce_sum(loss_per_event)
 
 global_loss_list["L2Distance"] = L2Distance
 
@@ -155,7 +155,7 @@ class L2DistanceWithUncertainties(tf.keras.losses.Loss):
         if mode == "ln_sigma":
             # train ln(sigma) to improve convergence
             ln_sigma = prediction[:, 18:36]
-            tf.print("\nln(sigma)", tf.reduce_min(ln_sigma, axis=0), output_stream=sys.stdout)
+            tf.print("\nln(sigma)", tf.reduce_mean(ln_sigma, axis=0), output_stream=sys.stdout)
             tf.print("\npred-truth", tf.reduce_mean(pred1-truth, axis=0))
             tf.debugging.check_numerics(ln_sigma, "ln(sigma) has nans or infs")
 
@@ -178,7 +178,7 @@ class L2DistanceWithUncertainties(tf.keras.losses.Loss):
         if mode == "sigma":
             # train sigma as is
             sigma = prediction[:, 18:36]
-            tf.print("\nsigma", tf.reduce_min(sigma, axis=0), output_stream=sys.stdout)
+            tf.print("\nsigma", tf.reduce_mean(sigma, axis=0), output_stream=sys.stdout)
             tf.print("\npred-truth", tf.reduce_mean(pred1-truth, axis=0))
             tf.debugging.check_numerics(sigma, "Sigma has nans or infs")
 
@@ -200,7 +200,7 @@ class L2DistanceWithUncertainties(tf.keras.losses.Loss):
 
         if mode == "inverse_sigma":
             inverse_sigma = prediction[:, 18:36]
-            tf.print("\nsigma", 1/tf.reduce_min(inverse_sigma, axis=0), output_stream=sys.stdout)
+            tf.print("\nsigma", 1/tf.reduce_mean(inverse_sigma, axis=0), output_stream=sys.stdout)
             tf.print("\npred-truth", tf.reduce_mean(pred1-truth, axis=0))
             tf.debugging.check_numerics(inverse_sigma, "Sigma has nans or infs")
 
