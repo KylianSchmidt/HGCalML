@@ -89,6 +89,7 @@ class GarNetRagged(LayerWithMetrics):
             values=tf.repeat(f_tilde_max, rl, axis=0),
             row_lengths=rl
         ).with_row_splits_dtype(tf.int32)
+        
         # (E, H, S, P) x (E, H, S, 1) = (E, H, S, P)
         f_tilde_mean_aggregated = f_tilde_mean_ragged * \
             tf.expand_dims(edge_weights, axis=3)

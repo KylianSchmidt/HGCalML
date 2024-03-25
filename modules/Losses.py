@@ -71,11 +71,11 @@ class L2Distance(tf.keras.losses.Loss):
         """
         pred1, pred2 = _nntr_find_prediction(prediction)
         # Loss function
-        distance1 = tf.reduce_sum(
+        distance1 = tf.reduce_mean(
             (pred1 - truth)**2,
             axis=1,
             keepdims=True)
-        distance2 = tf.reduce_sum(
+        distance2 = tf.reduce_mean(
             (pred2 - truth)**2,
             axis=1,
             keepdims=True)
@@ -84,7 +84,7 @@ class L2Distance(tf.keras.losses.Loss):
             tf.concat([distance1, distance2], axis=1),
             axis=1)
         # res = min(E x 1) = 1
-        return tf.reduce_sum(loss_per_event)
+        return tf.reduce_mean(loss_per_event)
 
 global_loss_list["L2Distance"] = L2Distance
 

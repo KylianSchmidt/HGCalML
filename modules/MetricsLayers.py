@@ -238,6 +238,52 @@ class MLReductionMetrics(MLBase):
         no_noise_hits_bef = tf.cast(tf.math.count_nonzero(tidx+1)  ,dtype='float32')
         no_noise_hits_aft = tf.cast(tf.math.count_nonzero(stidx+1) ,dtype='float32')
         self.add_prompt_metric(no_noise_hits_aft/no_noise_hits_bef,self.name+'_no_noise_reduction')
+
+
+from Losses import _nntr_find_prediction
+
+class L2DistanceMetric(MLBase):
+    def __init__(self, **kwargs):
+        """ Loss function for the reconstruction of two photons. Compares the
+        accuracy of the reconstructed track with both real tracks and minimizes
+        the combined distance.
+        """
+        super().__init__(**kwargs)
+        
+    def metrics_call(self, inputs):
+        truth, prediction = inputs
+        r""" Expect always two vertices and permutate both to check which best
+        fits the true vertex variables     
+        
+        Loss function without the uncertainty parameter 'sigma'
+
+        Latex formula:
+        \mathcal{L} = \left( \Vec{t} - \Vec{p} \right)^2
+        """
+        pred1, pred2 = _nntr_find_prediction(prediction)
+        # Loss function
+        distance1 = tf.reduce_mean(
+            (pred1 - truth)**2,
+            axis=1,
+            keepdims=True)
+        distance2 = tf.reduce_mean(
+            (pred2 - truth)**2,
+            axis=1,
+            keepdims=True)
+        # Loss = E x min([d1, d2]) = E x 1
+        loss_per_event = tf.reduce_min(
+            tf.concat([distance1, distance2], axis=1),
+            axis=1)
+        # res = min(E x 1) = 1
+        return tf.reduce_mean(loss_per_event)
+    
+
+    class L2DistanceWithUncertaintiesMetric(MLBase):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+
+        def metrics_call(self, inputs):
+            return super().metrics_call(inputs)
         
         
         

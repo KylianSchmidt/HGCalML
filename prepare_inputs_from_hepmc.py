@@ -3,11 +3,14 @@ import awkward as ak
 import pandas as pd
 import uproot
 import os
+import sys
 import itertools
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 from tabulate import tabulate
 from icecream import ic
 from multiprocessing import Pool
+from plotting import PlottingWrapper as pw
 plt.style.use("belle2")
 
 
@@ -26,19 +29,24 @@ class PrepareInputs:
             energy_cut=0.2,
             low_hits_cut=20,
             opening_angle_cut=2,
+            sourceParticleID=False,
+            num_hits_photon_1=1,
+            num_hits_photon_2=1,
             perfect_detector=False,
-            write=True
+            write=False
             ):
-        self.filename = ic(filename).rstrip('.root')
+        self.filename = ic(filename).rstrip('root').rstrip(".")
         self.hits_checkpoint_filename = self.filename+"_df_checkpoint.csv"
         self.truth_checkpoint_filename = self.filename+"_truth_checkpoint.csv"
+        self.sourceParticleID = sourceParticleID
         truth_keys = [
                 "Px1", "Py1", "Pz1", "Vx1", "Vy1", "Vz1",
                 "Px2", "Py2", "Pz2", "Vx2", "Vy2", "Vz2"
             ]
-        offsets_with_empty_ = np.array([1])
+        offsets_with_empty_event = np.array([1])
         offsets_without_absorber_cumsum = np.array([1])
-        offsets_cumsum_with_empty_ = np.array([1])
+        offsets_cumsum_with_empty_events = np.array([1])
+        num_original_file = np.array([1])
 
         if os.path.exists(self.hits_checkpoint_filename):
             df = pd.read_csv(self.hits_checkpoint_filename, index_col=[0, 1])
@@ -46,15 +54,21 @@ class PrepareInputs:
             # Extract hits and truth from root file
             raw_array = self._find_hits()
             truth = self._find_truth()
+            ic(truth[0])
+            num_original_file = ak.count(raw_array, axis=1)[:, 0]
 
-            offsets_with_empty_ = ak.count(raw_array, axis=1)[:, 0]
+            # Remove events with only one photon
+            if sourceParticleID:
+                sourceID = raw_array[:, :, 6]
+                raw_array = raw_array[(ak.sum(sourceID == 1, axis=1) >= num_hits_photon_1) & (ak.sum(sourceID == 2, axis=1) >= num_hits_photon_2)]
 
-            # Remove empty 
-            offsets_cumsum_with_empty_ = np.cumsum(offsets_with_empty_)
-            keep_index = np.zeros(len(offsets_cumsum_with_empty_)-1, dtype='bool')
+            # Remove empty events
+            offsets_with_empty_event = ak.count(raw_array, axis=1)[:, 0]
+            offsets_cumsum_with_empty_events = np.cumsum(offsets_with_empty_event)
+            keep_index = np.zeros(len(offsets_cumsum_with_empty_events)-1, dtype='bool')
 
-            for i in range(1, len(offsets_cumsum_with_empty_)):
-                if offsets_cumsum_with_empty_[i-1] != offsets_cumsum_with_empty_[i]:
+            for i in range(1, len(offsets_cumsum_with_empty_events)):
+                if offsets_cumsum_with_empty_events[i-1] != offsets_cumsum_with_empty_events[i]:
                     keep_index[i-1] = True
 
             raw_array = raw_array[keep_index]
@@ -88,10 +102,14 @@ class PrepareInputs:
             # Add truth
             truth_c = i_0 = np.repeat(truth, offsets, axis=0)
 
+            if self.sourceParticleID:
+                columns = ["layerType", "cellID", "x", "y", "z", "E", "sourceID", *truth_keys]
+            else:
+                columns = ["layerType", "cellID", "x", "y", "z", "E", *truth_keys]
+
             df_original = pd.DataFrame(
                 np.concatenate([hits_flattened, truth_c], axis=1),
-                columns=["layerType", "cellID", "x",
-                         "y", "z", "E", *truth_keys],
+                columns=columns,
                 index=nindex)
 
             # Sum over same cellIDs in the calorimeter
@@ -174,9 +192,10 @@ class PrepareInputs:
 
         # Check that everything is correct
         assert len(offsets_cumsum) == len(truth_points)+1
-        totlen = offsets_cumsum_with_empty_[-1]
+        totlen = ak.sum(num_original_file)
         print(tabulate(
-            [["Original root file:", len(offsets_cumsum_with_empty_), totlen, 100.0],
+            [["Original root file:", len(num_original_file) , ak.sum(num_original_file), 100.0],
+             ["Removed events with only one photon", len(offsets_with_empty_event), offsets_cumsum_with_empty_events[-1], f"{offsets_cumsum_with_empty_events[-1]/totlen*100:.2f}"],
              ["Removed absorber hits:", len(offsets_without_absorber_cumsum), offsets_without_absorber_cumsum[-1], f"{offsets_without_absorber_cumsum[-1]/totlen*100:.2f}"],
              ["Summed over calo cells:", len(offsets_sum_calo), len(features_sum_calo), f"{len(features_sum_calo)/totlen*100:.2f}"],
              ["Removed low energy", len(offsets_sum_calo), num_after_low_E_cut, f"{num_after_low_E_cut/totlen*100:.2f}"],
@@ -243,17 +262,22 @@ class PrepareInputs:
                     file["Truth_parameters"] = {
                         "truth_mean": self.truth_mean, "truth_std": self.truth_std}
 
-        return ak.unflatten(features, offsets), truth_points
+        return ak.unflatten(features, offsets), truth_points,  len(offsets_sum_calo), num_after_angle_cut_
 
     def _find_hits(self) -> ak.Array:
         keys = ["layerType", "cellID", "x", "y", "z", "E"]
-        prefix = "/Output/fHits/fHits."
+        prefix = "Events/Output/fHits/fHits."
         raw_array = []
 
         print("[1/3] Extract from root file")
         for keys in keys:
             raw_array.append(self._extract_to_array(
                 prefix+keys)[..., np.newaxis])
+
+        # New root files include the information about the primary particle
+        if self.sourceParticleID:
+            raw_array.append(self._extract_to_array(prefix+"sourceParticleID")[..., np.newaxis])
+
         raw_array = ak.concatenate(raw_array, axis=-1)
         return raw_array
 
@@ -261,20 +285,16 @@ class PrepareInputs:
         """ Shape:
         ( x 12)
         """
-        prefix = "/Output/fParticles/fParticles."
-        keys = ["decayX", "decayY", "decayZ"]
-        vertex = []
+        prefix = "Events/Output/fParticles/fParticles."
+        keys = ["mcPx", "mcPy", "mcPz", "decayX", "decayY", "decayZ"]
+        truth_array = []
 
         for key in keys:
-            vertex.append(self._extract_to_array(prefix+key)[..., np.newaxis])
-
-        vertex = ak.concatenate(vertex, axis=-1)
-        vertex = ak.flatten(vertex, axis=-1)
-        vertex = ak.pad_none(vertex, target=3)
-        vertex = ak.fill_none(vertex, 0.0)
-
-        p1, p2 = self._find_momentum_photons()
-        return ak.concatenate([p1, vertex, p2, vertex], axis=1)
+            truth_array.append(self._extract_to_array(
+                prefix+key)[..., np.newaxis])
+        truth_array = ak.concatenate(truth_array, axis=-1)
+        truth_array = ak.flatten(truth_array, axis=-1)
+        return truth_array
 
     def _extract_to_array(self, key) -> ak.Array:
         """ This method extracts the  and hits for a given key in the root
@@ -288,34 +308,111 @@ class PrepareInputs:
 
     def _find_offsets(self, df: pd.DataFrame) -> np.ndarray:
         return df.reset_index(level=1).index.value_counts().sort_index().to_numpy()
-
-    def _find_momentum_photons(self):
-        """ This function reads the momentum from the two founds directly from the hepmc file since the simulation
-        currently does not records the daughter particles of the alp. The truth position however is correct in the
-        simulation output file.
-        Expects no header in the hepmc file
-        """
-        with open(f"/ceph/kschmidt/beamdump/alps/simulation/alp.hepmc3") as file:
-            photons = file.readlines()
-
-        p1_raw = [line.strip() for i, line in enumerate(photons) if (i+1) % 7 == 6]
-        p2_raw = [line.strip() for i, line in enumerate(photons) if (i+1) % 7 == 0]
-
-        p1, p2 = [], []
-        for line in p1_raw:
-            parts = line.split()
-            p1.append([float(part) for part in [parts[6], parts[5], parts[4]]])
-        for line in p2_raw:
-            parts = line.split()
-            p2.append([float(part) for part in [parts[6], parts[5], parts[4]]])
-
-        return ak.Array(p1), ak.Array(p2)
-
+    
 
 if __name__ == "__main__":
     pi = PrepareInputs()
 
-    features, truth = pi.perform("/ceph/kschmidt/beamdump/alps/simulation/alp.root", opening_angle_cut=0.65)
+    #num_testing_files = 20
+
+    ta_distance = "100"
+    model = {"30": "Model A", "100": "Model B"}[ta_distance]
+    dir = {"30": "/ceph/kschmidt/beamdump/nntr_data/12_20_training/Training_", "100":  "/ceph/kschmidt/beamdump/ta_distance_sweep/training_100.0_at/Training_" }[ta_distance]
+    #dir = {"30": "/ceph/kschmidt/beamdump/nntr_data/12_20_testing/Testing_", "100":  "/ceph/kschmidt/beamdump/ta_distance_sweep/testing_100.0/Testing_" }[ta_distance]
+
+    if ta_distance == "30":
+        files_index = range(20)
+    elif ta_distance == "100":
+        files_index = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19]
+
+    with Pool(10) as p:
+        results = p.map(pi.perform, [(f"{dir}{i}.root") for i in files_index])
+
+    # Num events
+    len_events = 0
+    len_hits = 0
+    len_events_after_energy_cut = 0
+    len_events_after_angle_cut = 0
+    vz = []
+    a1x, a1y = [], []
+    for i in range(len(results)):
+        len_events += len(results[i][1])
+        len_hits += len(ak.flatten(results[i][0]))
+        len_events_after_energy_cut += results[i][2]
+        len_events_after_angle_cut += results[i][3]
+        vz.append(results[i][1][:, 17])
+        a1x.append(results[i][1][:, 0])
+        a1y.append(results[i][1][:, 1])
+
+    ic(len_hits)
+    ic(len_events_after_energy_cut)
+    ic(len_events_after_angle_cut)
+    ic(len_events)
+    vertex = ic(ak.concatenate(vz, axis=0))
+
+    bins = np.linspace(-1400, -100, 50+1)
+    fig, ax = plt.subplots()
+    ax.text(
+        0.02, 0.94,
+        "LUXE-NPOD",
+        transform=ax.transAxes,
+        fontsize=16,
+        fontweight="bold"
+    )
+    ax.text(
+        0.27, 0.94,
+        "(own work)",
+        transform=ax.transAxes,
+    )
+    ax.text(
+        0.02, 0.84,
+        "Photon reconstruction\n"
+        + f"{len(vertex)} MC events",
+        transform=ax.transAxes,
+    )
+    plt.hist(vertex, bins, histtype="step", label="Training set")
+    plt.legend()
+    plt.xlim(bins[0], bins[-1])
+    plt.ylim(0, 3500)
+    plt.ylabel(f"Counts / ({(bins[1]-bins[0]):.0f} mm)")
+    plt.xlabel(r"$V_{1,z}$"+" [mm]")
+    plt.savefig(f"/work/kschmidt/DeepJetCore/TrackReco_DeepJetCore/HGCalML/nntr_models/normal_detector/ta_distance_sweep/tad_{ta_distance}/Plots/vertex_true_luxe", dpi=400)
+
+    a1x = ak.concatenate(a1x, axis=0).to_numpy()
+    a1y = ak.concatenate(a1y, axis=0).to_numpy()
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    h = ax.hist2d(
+        x=a1x,
+        y=a1y,
+        bins=np.linspace(-100, 100, 40+1),
+        cmap="viridis_r",
+        cmin=1
+    )
+    fig.colorbar(h[3], ax=ax, label="Counts / (5 mm)")
+    plt.xlim(-100, 100)
+    plt.ylim(-100, 100)
+    plt.xlabel("x [mm]")
+    plt.ylabel("y [mm]")
+    ax.text(
+        0.02, 0.94,
+        "Beamdump",
+        transform=ax.transAxes,
+        fontsize=16,
+        fontweight="bold"
+    )
+    ax.text(
+        0.32, 0.94,
+        "(own work)",
+        transform=ax.transAxes,
+    )
+    ax.text(
+        0.02, 0.84,
+        "Photon reconstruction\n"
+        + f"{len(vertex)} MC events",
+        transform=ax.transAxes,
+    )
+    plt.savefig(f"/work/kschmidt/DeepJetCore/TrackReco_DeepJetCore/HGCalML/nntr_models/normal_detector/ta_distance_sweep/tad_{ta_distance}/Plots/heatmap", dpi=400)
 
     
 
