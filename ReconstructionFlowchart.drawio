@@ -1,0 +1,157 @@
+<mxfile host="app.diagrams.net" modified="2024-03-25T13:59:18.087Z" agent="Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0" etag="jaOsqst_HhrIV0VZXW7F" version="24.1.0" type="github">
+  <diagram name="Page-1" id="c9U7Q5-ioa7NLhrlyYhg">
+    <mxGraphModel dx="1834" dy="1256" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-1" value="&lt;h1 style=&quot;margin-top: 0px;&quot;&gt;Reconstruction Flowchart&lt;br&gt;&lt;/h1&gt;&lt;p&gt;Information flow from the Geant4 Simulation of the LUXE-NPOD detector to the reconstruction algorithm.&lt;br&gt;&lt;/p&gt;" style="text;html=1;whiteSpace=wrap;overflow=hidden;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="-40" width="400" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="uK7ZjZ2AEnYbWpOKw57a-2" target="uK7ZjZ2AEnYbWpOKw57a-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-2" value="BDTC class" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="160" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="uK7ZjZ2AEnYbWpOKw57a-3" target="uK7ZjZ2AEnYbWpOKw57a-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-3" value="GUI / Macro" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="240" y="160" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="uK7ZjZ2AEnYbWpOKw57a-4" target="uK7ZjZ2AEnYbWpOKw57a-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-4" value="Geant4 Simulation" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="140" y="240" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-5" value="&lt;div&gt;https://gitlab.etp.kit.edu/aheidelbach/beamdumptrackcalo&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="440" y="160" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="uK7ZjZ2AEnYbWpOKw57a-8" target="uK7ZjZ2AEnYbWpOKw57a-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-8" value="Simulation output .root file" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="140" y="320" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-9" value="&lt;div&gt;Contains true MC information&lt;/div&gt;&lt;div&gt;All hits recorded in detector &lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="440" y="320" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-24" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="uK7ZjZ2AEnYbWpOKw57a-10" target="uK7ZjZ2AEnYbWpOKw57a-23">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-10" value="PrepareInputs class" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="140" y="400" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-11" value="&lt;div&gt;https://github.com/KylianSchmidt/NNTR&lt;/div&gt;&lt;div&gt;Converts .root to python awkward arrays using uproot&lt;/div&gt;&lt;div&gt;Applies selection criteria&lt;/div&gt;&lt;div&gt;Sets input shape for the reconstruction algorithm&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;- Hit: [layerType, x, y, z, E]&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;- Events: flattened array with row splits&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;- True MC: [V, A, B] for each photon, flattened&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="440" y="400" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="uK7ZjZ2AEnYbWpOKw57a-14" target="uK7ZjZ2AEnYbWpOKw57a-28">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-14" value="ConvertFromSource" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="140" y="640" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-16" value="Script (added to CLI by env.sh)&lt;br&gt;&lt;div&gt;Call the TrainData class&lt;/div&gt;&lt;div&gt;Responsible for memory structure of the input graph&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="440" y="640" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="uK7ZjZ2AEnYbWpOKw57a-17" target="uK7ZjZ2AEnYbWpOKw57a-14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-17" value="TrainData_TrackReco class" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="240" y="560" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-18" value="&lt;div&gt;Converts the data-set from numpy to ragged Tensor&lt;/div&gt;&lt;div&gt;Set the format of the output file&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="440" y="560" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="uK7ZjZ2AEnYbWpOKw57a-20" target="uK7ZjZ2AEnYbWpOKw57a-32">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-20" value="NNTR class" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="140" y="880" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-21" value="&lt;div&gt;Contains the network architecture&lt;/div&gt;&lt;div&gt;Inherits from TrainingBase class&lt;br&gt;&lt;/div&gt;&lt;div&gt;Executes training and prediction script if called from CLI&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="440" y="880" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="uK7ZjZ2AEnYbWpOKw57a-23" target="uK7ZjZ2AEnYbWpOKw57a-14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-23" value="Prepared .root file" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="140" y="480" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-31" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="uK7ZjZ2AEnYbWpOKw57a-28" target="uK7ZjZ2AEnYbWpOKw57a-20">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-28" value="Data Collection .djcdc" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="140" y="720" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-29" value="DJC data collection in tensorflow ragged shape" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="440" y="720" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-37" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="uK7ZjZ2AEnYbWpOKw57a-32" target="uK7ZjZ2AEnYbWpOKw57a-35">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-32" value="Predicted.djctd" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="140" y="960" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-33" value="&lt;div&gt;DJC TrainData format&lt;/div&gt;&lt;div&gt;Pickled arrays with the shape dictated by the TrainData_TrackReco class&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="440" y="960" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-35" value="Extract" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="140" y="1040" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-36" value="&lt;div&gt;Converts the Predicted pickled arrays to awkward arrays&lt;/div&gt;&lt;div&gt;Adds the true MC information and detector hits from prepared .root files&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="440" y="1040" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-38" value="In a python file, import BeamDumpTrackReco.BDTC class&lt;div&gt;Set the detector geometry and additional parameters&lt;/div&gt;&lt;div&gt;Set the save director and save name of root file&lt;br&gt;&lt;/div&gt;&lt;div&gt;Execute with .run() method&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="-320" y="160" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-39" value="&lt;div align=&quot;left&quot;&gt;&lt;font style=&quot;font-size: 16px;&quot;&gt;Usage&lt;/font&gt;&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="-320" y="80" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-40" value="&lt;font style=&quot;font-size: 15px;&quot;&gt;Program flow&lt;br&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-41" value="&lt;font style=&quot;font-size: 16px;&quot;&gt;Notes&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="440" y="80" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-42" value="" style="endArrow=none;html=1;rounded=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="-320" y="130" as="sourcePoint" />
+            <mxPoint x="760" y="130" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-43" value="&lt;div&gt;Multithreaded on large machine (bms2)&lt;/div&gt;" style="text;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="440" y="240" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-44" value="&lt;div&gt;Found in prepare_inputs.py &lt;br&gt;&lt;/div&gt;&lt;div&gt;Specify the filename of the root file&lt;/div&gt;&lt;div&gt;Adapt the perform() method to change the output format, selection criteria etc.&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="-320" y="400" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-45" value="&lt;div&gt;Found in modules.datastructures.TrainData_TrackReco.py&lt;/div&gt;&lt;div&gt;Has to match the output format of PrepareInputs class&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="-320" y="560" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-46" value="&lt;div&gt;Execute from the Command Line Interface (CLI) using&lt;/div&gt;&lt;div&gt;convertFromSource.py with the following flags:&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;-i&amp;nbsp; text file listing the input Prepared .root files&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;-o output directory&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;-c TrainData_TrackReco&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="-320" y="640" width="320" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-47" value="&lt;div&gt;Found in Train.training_nntr.py&lt;/div&gt;&lt;div&gt;Execute from command line&lt;/div&gt;&lt;div&gt;Change the architecture in the class&lt;/div&gt;&lt;div&gt;Change the training cycle outside of class &lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="-320" y="880" width="320" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-51" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="uK7ZjZ2AEnYbWpOKw57a-48" target="uK7ZjZ2AEnYbWpOKw57a-20">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-48" value="L2Distance " style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="240" y="800" width="160" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-50" value="Specifies the Loss function as the L2 distance between the coordinates of V, A, B for each photon and permutes" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="440" y="800" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-52" value="&lt;div&gt;Found in Losses.py&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="-320" y="800" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="uK7ZjZ2AEnYbWpOKw57a-54" value="&lt;div&gt;Found in plotting.py&lt;/div&gt;&lt;div&gt;Specify the model directory and name, along with the prepared testing .root files and the predicted .djctd files&lt;br&gt;&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="-320" y="1040" width="320" height="40" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
