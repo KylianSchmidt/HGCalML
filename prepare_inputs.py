@@ -18,12 +18,12 @@ class PrepareInputs:
         self.hits_std = None
         self.perfect_hits_mean = None
         self.perfect_hits_std = None
-        self.checkpoint_filename = "./dataFrame.csv"
 
 
     def perform(self, filename):
         ic(filename)
         self.filename = filename.rstrip('.root')
+        self.checkpoint_filename = self.filename + "_dataFrame.csv"
         write = True
 
         if os.path.exists(self.checkpoint_filename):
@@ -183,49 +183,6 @@ class PrepareInputs:
                 file["Truth"] = {"truth_normalized": truth_points_normalized}
                 file["Truth_parameters"] = {"truth_mean": self.truth_mean, "truth_std": self.truth_std}
 
-        # Perfect detector
-        perfect_hits = []
-        for x in np.concatenate([np.linspace(0, 250, 30), [400]]):
-            perfect_hits.append(line(truth_array_grouped, 1, x))
-            perfect_hits.append(line(truth_array_grouped, 2, x))
-        perfect_hits = np.transpose(np.array(perfect_hits), axes=(1, 0, 2))
-        perfect_hits = np.concatenate(
-            [np.full((perfect_hits.shape[0], perfect_hits.shape[1], 1), 1),
-             perfect_hits,
-             np.full((perfect_hits.shape[0], perfect_hits.shape[1], 1), 0.0002)],
-            axis=2)
-        perfect_hits[:, -1, 0] = 2.0
-        perfect_hits[:, -1, 4] = 0.04
-        perfect_hits[:, -2, 0] = 2.0
-        perfect_hits[:, -2, 4] = 0.04
-        rng = np.random.default_rng()
-        rng.shuffle(perfect_hits, axis=1)
-
-        # Record offsets
-        perfect_offsets = ak.count(perfect_hits, axis=1)[:, 0]
-        perfect_offsets_cumsum = np.append(0, np.cumsum(perfect_offsets))
-        perfect_hits = np.array(ak.to_list(ak.flatten(perfect_hits)))
-
-        # Normalize
-        if self.perfect_hits_mean is None:
-            self.perfect_hits_mean = np.mean(perfect_hits, axis=0)+1E-10
-            self.perfect_hits_std = np.std(perfect_hits, axis=0)+1E-10
-        perfect_hits_normalized = (perfect_hits-self.perfect_hits_mean)/self.perfect_hits_std
-
-        assert len(perfect_offsets_cumsum) == len(truth_points)+1
-
-        # Write to file
-        if write:
-            with uproot.recreate(self.filename+"_idealized_preprocessed.root") as file:
-                file["Hits"] = {"hits_normalized": perfect_hits_normalized}
-                file["Hits_row_splits"] = {"rowsplits": perfect_offsets_cumsum}
-                file["Hits_offsets"] = {"offsets": perfect_offsets}
-                file["Hits_parameters"] = {
-                    "hits_mean": self.perfect_hits_mean,
-                    "hits_std": self.perfect_hits_std}
-                file["Truth"] = {"truth_normalized": truth_points_normalized}
-                file["Truth_parameters"] = {"truth_mean": self.truth_mean, "truth_std": self.truth_std}
-
     def _find_hits(self) -> ak.Array:
         keys = ["layerType", "cellID", "x", "y", "z", "E"]
         prefix = "Events/Output/fHits/fHits."
@@ -269,27 +226,7 @@ class PrepareInputs:
 
 if __name__ == "__main__":
     pi = PrepareInputs()
-    j = sys.argv[1]
-
-    num_training_files = 0
-    num_testing_files = 0
-
-    # Training
-    dir = f"/ceph/kschmidt/beamdump/ta_distance_sweep/training_{j}_at/" 
-    with Pool(20) as p:
-        p.map(pi.perform, [(f"{dir}/Training_{i}.root") for i in range(num_training_files)])
-    
-    with open(f"{dir}/Training_preprocessed.txt", "a") as file:
-        for i in range(num_training_files):
-            file.write(f"{dir}/Training_{i}_preprocessed.root\n")
-
-    # Testing
-    dir = f"/ceph/kschmidt/beamdump/ta_distance_sweep/testing_{j}/"
-    with Pool(20) as p:
-        p.map(pi.perform, [(f"{dir}/Testing_{i}.root") for i in range(num_testing_files)])
-    
-    with open(f"{dir}/Testing_preprocessed.txt", "a") as file:
-        for i in range(num_testing_files):
-            file.write(f"{dir}/Testing_{i}_preprocessed.root\n")
+    pi.perform("training.root")
+    pi.perform("testing.root")
 
 
