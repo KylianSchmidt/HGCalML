@@ -202,7 +202,7 @@ class NNTR():
             18,
             activation="softplus",
             bias_initializer="ones",
-            #activity_regularizer=tf.keras.regularizers.L2(1e-5),
+            activity_regularizer=tf.keras.regularizers.L2(1e-3),
             )(a)
 
         outputs = tf.keras.layers.Concatenate(axis=1)([features, sigma])
@@ -235,10 +235,10 @@ if __name__ == "__main__":
         nntr = NNTR(
             model_type="no_uncertainties",
             detector_type="normal_detector",
-            model_name="comparison/12_30_nu_only_gravnet",
-            #takeweights="./nntr_models/normal_detector/improved_gen/12_20_nu_v2/Output/KERAS_check_model_block_0_epoch_10.h5",
-            training_data_collection="/ceph/kschmidt/beamdump/nntr_data/12_20_training/Training/dataCollection.djcdc",
-            testing_data_collection="/ceph/kschmidt/beamdump/nntr_data/12_20_testing/Testing/dataCollection.djcdc"
+            model_name="model",
+            takeweights=""
+            training_data_collection="training.djcdc",
+            testing_data_collection="testing.djcdc"
         )
     elif len(sys.argv) == 4:
         nntr = NNTR(
