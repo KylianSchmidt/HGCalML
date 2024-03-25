@@ -65,14 +65,20 @@ class Extract:
 
         # Read hits
         with uproot.open(self.testing_root_files) as file:
-            self.hits_normalized = file["Hits"]["hits_normalized"].arrays()["hits_normalized"]
+            self.hits_normalized = file["Hits"]["hits_normalized"].arrays()[
+                "hits_normalized"]
             self.offsets_cumsum = file["Hits_row_splits"].arrays()["rowsplits"]
             self.offsets = file["Hits_offsets"].arrays()["offsets"]
-            self.hits_mean = file["Hits_parameters"]["hits_mean"].arrays()["hits_mean"]
-            self.hits_std = file["Hits_parameters"]["hits_std"].arrays()["hits_std"]
-            self.truth_normalized = file["Truth"]["truth_normalized"].arrays()["truth_normalized"]
-            self.truth_mean = file["Truth_parameters"]["truth_mean"].arrays()["truth_mean"]
-            self.truth_std = file["Truth_parameters"]["truth_std"].arrays()["truth_std"]
+            self.hits_mean = file["Hits_parameters"]["hits_mean"].arrays()[
+                "hits_mean"]
+            self.hits_std = file["Hits_parameters"]["hits_std"].arrays()[
+                "hits_std"]
+            self.truth_normalized = file["Truth"]["truth_normalized"].arrays()[
+                "truth_normalized"]
+            self.truth_mean = file["Truth_parameters"]["truth_mean"].arrays()[
+                "truth_mean"]
+            self.truth_std = file["Truth_parameters"]["truth_std"].arrays()[
+                "truth_std"]
 
         self.hits_flattened = self.hits_normalized*self.hits_std+self.hits_mean
         self.hits = ak.unflatten(self.hits_flattened, self.offsets)
@@ -95,11 +101,13 @@ class Extract:
             with open(f"{self.model_dir}/{self.model_name}/{self.predicted_file}", "rb") as file:
                 prediction_all = pickle.load(file)["Predicted"]
                 self.predicted_raw = prediction_all[0]
-                self.predicted_array = self.predicted_raw[:, 0:18]*self.truth_std + self.truth_mean
+                self.predicted_array = self.predicted_raw[:,
+                                                          0:18]*self.truth_std + self.truth_mean
 
                 if self.read_uncertainties and len(prediction_all[0][0]) == 36:
                     self.uncertainties = prediction_all[0][:, 18:36]
-                    print("Caution: when training ln_sigma, rescale with np.exp(uncertainties). Also take care of undoing any normalization")
+                    print(
+                        "Caution: when training ln_sigma, rescale with np.exp(uncertainties). Also take care of undoing any normalization")
 
             self.predicted = {}
             self.predicted["A1"] = self.predicted_array[:, 0:3]
@@ -182,13 +190,17 @@ class Plot:
                 iterables=iterables,
                 names=["DataType", "Property"])
             df = pd.DataFrame(columns=header)
-            
+
             for i, ob in enumerate(obs):
                 for a, axis in enumerate({"x": 0, "y": 1, "z": 2}):
-                    df.loc[ob+axis, ("Mean", "Predicted")] = np.mean(predicted[ob], axis=0)[a]
-                    df.loc[ob+axis, ("Uncertainties", "Predicted")] = np.mean(uncertainties[ob], axis=0)[a]
-                    df.loc[ob+axis, ("Mean", "Truth")] = np.mean(truth[ob], axis=0)[a]
-                    df.loc[ob+axis, ("Uncertainties", "Truth")] = np.std(truth[ob], axis=0)[a]
+                    df.loc[ob+axis, ("Mean", "Predicted")
+                           ] = np.mean(predicted[ob], axis=0)[a]
+                    df.loc[ob+axis, ("Uncertainties", "Predicted")
+                           ] = np.mean(uncertainties[ob], axis=0)[a]
+                    df.loc[ob+axis, ("Mean", "Truth")
+                           ] = np.mean(truth[ob], axis=0)[a]
+                    df.loc[ob+axis, ("Uncertainties", "Truth")
+                           ] = np.std(truth[ob], axis=0)[a]
         else:
             header = pd.MultiIndex.from_product(
                 iterables=[[eventID], ["Predicted", "Truth"]],
@@ -296,7 +308,7 @@ class FullTrackReco:
 
         p = self.predicted
         t = self.truth
-        
+
         # Predicted
         plot.scatter(
             x=[p["V1"][2], p["A1"][2], p["B1"][2]],
@@ -352,7 +364,6 @@ class FullTrackReco:
             label="True photon 2"
         )
 
-        
         # Absorber
         if show_absorber:
             absorber = self.df[self.df["layerType"] == 0]
@@ -384,7 +395,6 @@ class FullTrackReco:
             ymax=self.ATCellSideLength*self.ATCCellNumCols/2,
             alpha=0.1)
 
-
         # Calorimeter
         self.calo = self.df[self.df["layerType"] == 2]
         if not self.calo["z"].empty:
@@ -411,29 +421,56 @@ class FullTrackReco:
 
 
 # Plotting tools
+def FWHM(x: np.array, y: np.array):
+    def find_nearest(array, value):
+        array = np.asarray(array)
+        index = (np.abs(array - value)).argmin()
+        return index
+
+    max = find_nearest(y, np.max(y))
+    fwhmheight = np.max(y) / 2
+    x1 = x[find_nearest(y[:max], fwhmheight)]
+    x2 = x[max + find_nearest(y[max:], fwhmheight)]
+    fwhm = x2 - x1
+    return fwhm, fwhmheight, x1, x2
+
+
+def find_opening_angle(array):
+    p1 = (array[:, 12:15] - array[:, 0:3]).to_numpy()
+    p2 = (array[:, 15:18] - array[:, 6:9]).to_numpy()
+    args = p1[:, 0]*p2[:, 0] + p1[:, 1]*p2[:, 1] + p1[:, 2]*p2[:, 2]
+    theta = np.arccos(args/(np.linalg.norm(p1, axis=1)
+                      * np.linalg.norm(p2, axis=1)))
+    return theta*57.2958
+
 
 class PlottingWrapper:
 
-    def plot_add_info(ax: plt.Axes, detector_type="Idealized detector"):
+    def plot_add_info(ax: plt.Axes, numEvents, text_1="Photon Reconstruction", text_2="Demonstration set", loc_x=0.32):
         ax.text(
             0.02, 0.94,
             "Beamdump",
             transform=ax.transAxes,
             fontsize=16,
-            fontweight="bold")
+            fontweight="bold"
+        )
         ax.text(
-            0.02, 0.8,
-            "Track Reconstruction 2023\n"
-            + f"({detector_type})\n"
-            + r"$10^6$"+" events, "+r"$E_0 = 1-2$"+" GeV",
+            loc_x, 0.94,
+            "(own work)",
             transform=ax.transAxes,
-            fontsize=12)
-        
+        )
+        ax.text(
+            0.02, 0.78,
+            f"{text_1}\n"
+            + f"{text_2}\n"
+            + f"{numEvents} MC events",
+            transform=ax.transAxes,
+        )
 
     def plot_hits_per_events_histogram(data):
         if data.model_name == "idealized_detector":
-            print("Skipped plotting hits per events histograms as the idealized detector version has constant"+
-                "hits per events")
+            print("Skipped plotting hits per events histograms as the idealized detector version has constant" +
+                  "hits per events")
             pass
         elif data.model_name == "normal_detector":
             fig, ax = plt.subplots(1, 1, figsize=(8, 7))
@@ -473,7 +510,6 @@ class PlottingWrapper:
         plt.savefig(data.savefigdir+"residuals_v1")
         return ax
 
-
     def plot_v1_z(data):
         fig, ax = plt.subplots(1, 1, figsize=(8, 7))
         xlim = (-1.5E3, 0.1E3)
@@ -481,14 +517,14 @@ class PlottingWrapper:
         ax.hist(data.predicted["v1"][:, 2]*1E3, bins=bins, histtype="step", label="Predicted")
         ax.hist(data.truth["v1"][:, 2]*1E3, bins=bins, histtype="step", label="Truth")
         ax.set_xlabel(r"$V_z$ [mm]", loc="right")
-        ax.set_ylabel(f"Events / ({np.round(bins[1]-bins[0], 0)} mm)", loc="top")
+        ax.set_ylabel(
+            f"Events / ({np.round(bins[1]-bins[0], 0)} mm)", loc="top")
         ax.set_title("Vertex Position along detector axis")
         PlottingWrapper.plot_add_info(ax)
         ax.legend(loc="upper right")
         ax.set_ylim(0, 1600)
         plt.savefig(data.savefigdir+"v1z")
         return ax
-
 
     def plot_v1_z_pred_vs_true(data):
         t = data.truth["v1"][:, 2]*1E3
@@ -512,7 +548,6 @@ class PlottingWrapper:
         plt.savefig(data.savefigdir+"v1_z_pred_vs_true_hist2d")
         return ax
 
-
     def plot_tracks(data, eventID, axis="x"):
         """ Method which calls the FullTrackReco class and plots the hits as
         well as the true and predicted trajectory of the photons based on the
@@ -533,7 +568,7 @@ class PlottingWrapper:
         plot.set_xlabel("z [mm]", loc="right")
         plot.set_ylabel(f"{axis} [mm]", loc="top")
         PlottingWrapper.plot_add_info(plot)
-        #plot.legend(loc="lower left")
+        # plot.legend(loc="lower left")
         plot.set_xlim(-1500, 550)
         plot.set_ylim(-140, 150)
         plot.set_title("Detector sideview with two photon vertex")
@@ -541,59 +576,9 @@ class PlottingWrapper:
         fig.set_size_inches(8, 6)
         plt.savefig(f"{data.savefigdir}/Tracks/event_{eventID}_{axis}")
         return plot
-    
+
     def plot_calo(data, eventID):
         ftr = FullTrackReco(data, eventID)
         ftr.plot_calo()
         plt.savefig(f"{data.savefigdir}/Calo/event_{eventID}")
         return ftr
-
-
-if __name__ == "__main__":
-    
-    detector_type = "normal_detector"
-    model_name = "11_30"
-    
-    
-    if detector_type == "idealized_detector":
-        data = Extract(
-            model_dir=f"./nntr_models/idealized_detector/garnet/",
-            model_name=model_name,
-            testing_root_files="./nntr_data/idealized_detector/Raw/Testing.root",
-            read_uncertainties=True)
-
-        with uproot.open("./nntr_data/idealized_detector/Raw/Testing.root") as file:
-            hits = {}
-            for key in ['layerType', 'x', 'y', 'z', 'E']:
-                hits[key] = file["Events"]["Output"]["fHits"][f"fHits.{key}"].array(library="ak")
-            hits["cellID"] = np.full(np.shape(hits["x"]), 0)
-            hits["layerID"] = np.repeat(np.repeat([np.arange(0, 51)], 2, axis=1), len(hits["x"]), axis=0)
-
-        data.hits = hits
-        data.ATLayerNum = 50
-        data.ATCCellNumCols = 5
-        data.ATCCellNumRows = 5
-        data.ATCellSideLength = 40
-        data.CalorimeterThickness = 10
-
-    elif detector_type == "normal_detector":
-        data = Extract(
-            model_dir=f"./nntr_models/{detector_type}/garnet",
-            model_name=model_name,
-            testing_root_files="./nntr_data/normal_detector/Raw/Testing_preprocessed.root",
-            predicted_file="Predicted/pred_Testing_preprocessed.djctd",
-            read_uncertainties=True)
-
-    data.savefigdir = data.model_dir+data.model_name+"/Plots/"
-    os.makedirs(data.savefigdir+"/Tracks/", exist_ok=True)
-
-    PlottingWrapper.plot_hits_per_events_histogram(data)
-    PlottingWrapper.plot_point(data, obs="A1")
-    PlottingWrapper.plot_point(data, obs="B1")
-    #PlottingWrapper.plot_v1_z(data)
-    #PlottingWrapper.plot_v1_z_pred_vs_true(data)
-    eventID = np.random.default_rng().choice(len(data.truth["A1"]))
-    PlottingWrapper.plot_tracks(data, eventID, "x")
-    PlottingWrapper.plot_tracks(data, eventID, "y")
-    PlottingWrapper.plot_calo(data, eventID)
-
