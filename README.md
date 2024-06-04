@@ -1,6 +1,34 @@
 **NOTE:** Forked by Kylian Schmidt from the HGCalML project
 
 
+NNTR: Application to beamdump photon reconstruction
+===================================================
+
+Structure for training:
+ - The main training script is `Train/training_nntr.py`
+ - The input data is produced by a separate geant4 simulation. It's format is converted and the data is preprocessed by the `prepare_input.py` script. 
+ - After the preprocessing step, the data should be divided into
+    - Detector hits: awkward ragged arrays (here we use the excellent uproot and awkward packages ``https://zenodo.org/doi/10.5281/zenodo.4340632``, ``https://github.com/scikit-hep/awkward``) 
+    - True MC information: used for the training of the model. It is in the form of a ragged array, but could also be a regular array.
+   Both arrays have to be normalized before passing to the model. It is recommended to do this in the preprocessing script and keep the normalisation parameters (mean and standard deviation) on file for later use.
+ - The files produced by the preprocessing script are then passed to the `modules/datastructures/TrainData_TrackReco.py` script. The TrainData class converts the awkward ragged to a tensorflow ragged tensor. Further information on how to use the script can be found in `Converting the data from ntuples`.
+ - Finally, the loss functions found in `Losses.py` dictate the behaviour of the model. The L2Distance loss function works best, while the loss functions with uncertainties (L2DistanceWithUncertainties and QuantileLoss) are unstable and might diverge.
+
+After the training:
+ - The `plotting.py` file contains useful classes that show how to extract the output of the model and convert it to awkward arrays.
+
+List of files to adapt
+ - Train/training_nntr.py
+ - prepare_input.py
+ - modules/datastructures/TrainData_TrackReco.py
+ - Losses.py
+ - plotting.py (optional)
+
+Use:
+ 1. Perform the setup step detailled later
+ 2. Run ``./runDJC.sh`` to enter the container shell
+ 3. Run ``python3 Train/training_nntr.py`` to run the training and prediction (specify the paths to the .djcdc files for training and predicting) 
+
 HGCalML
 ===============================================================================
 

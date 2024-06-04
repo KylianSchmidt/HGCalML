@@ -236,7 +236,7 @@ if __name__ == "__main__":
             model_type="no_uncertainties",
             detector_type="normal_detector",
             model_name="model",
-            takeweights=""
+            takeweights="",
             training_data_collection="training.djcdc",
             testing_data_collection="testing.djcdc"
         )
